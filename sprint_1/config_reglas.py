@@ -17,6 +17,9 @@ Documentación maestra: MASTER_RULES.md (raíz proyecto).
 """
 from __future__ import annotations
 
+import hashlib
+from pathlib import Path
+
 # ============================================================
 # PREFIJOS DAVIVIENDA (R-DVV-08)
 # ============================================================
@@ -105,6 +108,18 @@ ESTADOS_SKIP_DEFAULT = ("excel generado", "procesado", "completado", "realizado"
 # NOTA: "pendiente frech" YA NO bloquea (R-DVV-09 leasing=hipotecario)
 
 # ============================================================
+# TEMPLATE PESOS.xlsx — integridad
+# ============================================================
+# SHA256 esperado del template maestro. El pipeline aborta si el archivo
+# fue modificado fuera del flujo de control (proteccion contra corrupcion
+# silenciosa del layout que romperia M2 sin diagnostico claro).
+# Para regenerar tras un cambio intencional:
+#   python -c "import hashlib; print(hashlib.sha256(open('PESOS.xlsx','rb').read()).hexdigest())"
+# Pegar el nuevo valor aqui y registrar en CHANGELOG la razon del cambio.
+PESOS_TEMPLATE_SHA256 = "d860270c340040d60042968e82caef3ae29af19aa09c989ebaad3f9802ac9625"
+PESOS_TEMPLATE_REL_PATH = "PESOS.xlsx"  # relativo a PROJECT_ROOT
+
+# ============================================================
 # NAMING / FORMATO
 # ============================================================
 EXCEL_NAMING_TEMPLATE = "ESTUDIO {nombre}-{fecha}.xlsx"  # nombre MAYUSCULAS, fecha DD.MM.AA
@@ -114,3 +129,32 @@ EXCEL_NAMING_TEMPLATE = "ESTUDIO {nombre}-{fecha}.xlsx"  # nombre MAYUSCULAS, fe
 # ============================================================
 TERMINOLOGIA_PROHIBIDA = ("asesores", "vendedores", "refinanciar", "reescriturar", "extender plazo")
 TERMINOLOGIA_OFICIAL = ("consultores", "optimizar", "reducir plazo", "reducir intereses")
+
+
+# ============================================================
+# Helpers de integridad
+# ============================================================
+def verify_pesos_template(project_root: Path | None = None) -> tuple[bool, str]:
+    """Verifica que PESOS.xlsx no haya sido alterado fuera del flujo controlado.
+
+    Retorna (ok, mensaje). Si ok=False, el pipeline debe abortar para evitar
+    estudios con layout corrupto (M2 atrapa lo evidente, pero no cambios de
+    fórmulas internas o cell formats).
+    """
+    if project_root is None:
+        project_root = Path(__file__).resolve().parent.parent
+    path = project_root / PESOS_TEMPLATE_REL_PATH
+    if not path.exists():
+        return False, f"PESOS.xlsx no encontrado en {path}"
+    try:
+        actual = hashlib.sha256(path.read_bytes()).hexdigest()
+    except Exception as exc:
+        return False, f"No se pudo leer PESOS.xlsx: {exc}"
+    if actual != PESOS_TEMPLATE_SHA256:
+        return False, (
+            f"PESOS.xlsx modificado: hash actual {actual[:16]}... "
+            f"!= esperado {PESOS_TEMPLATE_SHA256[:16]}... "
+            f"Si el cambio fue intencional, actualiza PESOS_TEMPLATE_SHA256 "
+            f"en config_reglas.py y registra la razon en CHANGELOG."
+        )
+    return True, "PESOS.xlsx integridad OK"

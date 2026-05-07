@@ -102,18 +102,6 @@ Para cambios que implican borrar regla de doc canónico, registrar aquí la regl
 
 ---
 
-## 2026-04-28
-
-- **[2026-04-28] R-DVV-16 — `pipeline_davivienda.py`**: STAGING excluido como fuente de datos financieros en cascada `construir_datos`. **Causa raíz:** la función usaba `_pick(HubSpot, REGISTROS, staging_row)` para `ingresos`, `abono` y `actividad_economica`. Cuando HubSpot y REGISTROS no tenían dato, el valor de STAGING ganaba. STAGING es cola operativa (nombre, banco, estado), NO fuente de verdad financiera. Datos en STAGING pueden ser residuo del bug R-DVV-14 (N/A cross-match) o entradas manuales erróneas. **Fix:** `ingresos` y `abono` y `actividad` ahora solo vienen de `_pick(HubSpot, REGISTROS)`. `consultor` sí puede venir de STAGING (es dato operativo). **Regla vieja:** `_pick(hs, reg, staging_row)` para todos los campos cliente. **Razón:** Jorge Luis Velasco mostraba `ingresos=$3,531,500` y `abono=$100,000` de STAGING aunque esos valores eran erróneos/residuales.
-
-- **[2026-04-28] R-DVV-15 — `extract_davivienda_pdf.py`**: Bug crítico en extracción seguro de vida (3 iteraciones hasta fix correcto):
-  - **Iteración 1 (diagnóstico inicial):** Se asumió que el formato era `"Seguro de Vida   0,02294   22.021"`. FIX: `re.finditer` + `_peso_col()`. Resultado: seguía fallando.
-  - **Iteración 2 (diagnóstico real):** Lectura directa del PDF via Drive MCP reveló el formato real: `"Seguro de Vida $22,021.00"` — con signo `$` entre el espacio y el número. El pattern `\s+([\d.,]+)` no hace match porque `$` no está en `[\d.,]`. FIX definitivo: `\s+\$?\s*([\d.,]+)` — agregado `\$?` para que el signo sea opcional.
-  - `_peso_col()` creada como función auxiliar robusta que detecta formato colombiano de miles (dot = miles si último grupo tiene 3 dígitos) y formato estándar con coma-miles/punto-decimal.
-  - **Regla vieja:** Pattern A sin `\$?`, hacía match de tasa (0.02294) y nunca llegaba al monto ($22,021.00). **Razón:** el `$` del extracto bloqueaba silenciosamente el regex.
-
----
-
 ## 2026-04-27
 
 - **[2026-04-27]** Retroalimentación estudio JORGE LUIS VELASCO SALAZAR → 3 bugs detectados y corregidos:
@@ -129,6 +117,18 @@ Para cambios que implican borrar regla de doc canónico, registrar aquí la regl
 - **[2026-04-27] Fix `_f()` — formato single-comma miles (`pipeline_davivienda.py`)**: Bug silencioso donde `_f('$200,000')` retornaba `200.0` en lugar de `200000.0`. Causa: una sola coma sin punto se trataba siempre como decimal colombiano. **Fix:** si hay una sola coma y los dígitos post-coma son exactamente 3 y todos dígitos, se trata como separador de miles (comportamiento análogo al fix existente para punto único). **Validado:** `_f('$200,000')=200000.0`, `_f('1234,56')=1234.56`, `_f('$3,531,500')=3531500.0`. **Regla vieja:** `elif has_comma and not has_dot: s = s.replace(",", ".")` — sin excepción para 3 dígitos. **Razón:** REGISTROS almacena abono como `'$200,000'` (formato EN), lo que hacía que el valor real de abono de clientes con ese formato llegara como `$200` al Excel.
 
 - **[2026-04-27] Retroalimentación Jorge Velasco — diagnóstico final resuelto**: Debug logging `[DEBUG-FUENTES]` confirmó causa raíz de abono=$100,000 erróneo: HubSpot tenía `abono_efectivo='100000'` (dato viejo). Jose corrigió en HubSpot a '200000'. REGISTROS tenía `ingresos='$3,531,500'` para Jorge (llegó por contaminación R-DVV-14, pero confirmado que es correcto). Debug logs temporales eliminados del pipeline. Estado post-fix: `abono_efectivo='200000'` en HubSpot ✓, `ingresos=$3,531,500` en REGISTROS ✓, pipeline listo para re-ejecución.
+
+---
+
+## 2026-04-28
+
+- **[2026-04-28] R-DVV-16 — `pipeline_davivienda.py`**: STAGING excluido como fuente de datos financieros en cascada `construir_datos`. **Causa raíz:** la función usaba `_pick(HubSpot, REGISTROS, staging_row)` para `ingresos`, `abono` y `actividad_economica`. Cuando HubSpot y REGISTROS no tenían dato, el valor de STAGING ganaba. STAGING es cola operativa (nombre, banco, estado), NO fuente de verdad financiera. Datos en STAGING pueden ser residuo del bug R-DVV-14 (N/A cross-match) o entradas manuales erróneas. **Fix:** `ingresos` y `abono` y `actividad` ahora solo vienen de `_pick(HubSpot, REGISTROS)`. `consultor` sí puede venir de STAGING (es dato operativo). **Regla vieja:** `_pick(hs, reg, staging_row)` para todos los campos cliente. **Razón:** Jorge Luis Velasco mostraba `ingresos=$3,531,500` y `abono=$100,000` de STAGING aunque esos valores eran erróneos/residuales.
+
+- **[2026-04-28] R-DVV-15 — `extract_davivienda_pdf.py`**: Bug crítico en extracción seguro de vida (3 iteraciones hasta fix correcto):
+  - **Iteración 1 (diagnóstico inicial):** Se asumió que el formato era `"Seguro de Vida   0,02294   22.021"`. FIX: `re.finditer` + `_peso_col()`. Resultado: seguía fallando.
+  - **Iteración 2 (diagnóstico real):** Lectura directa del PDF via Drive MCP reveló el formato real: `"Seguro de Vida $22,021.00"` — con signo `$` entre el espacio y el número. El pattern `\s+([\d.,]+)` no hace match porque `$` no está en `[\d.,]`. FIX definitivo: `\s+\$?\s*([\d.,]+)` — agregado `\$?` para que el signo sea opcional.
+  - `_peso_col()` creada como función auxiliar robusta que detecta formato colombiano de miles (dot = miles si último grupo tiene 3 dígitos) y formato estándar con coma-miles/punto-decimal.
+  - **Regla vieja:** Pattern A sin `\$?`, hacía match de tasa (0.02294) y nunca llegaba al monto ($22,021.00). **Razón:** el `$` del extracto bloqueaba silenciosamente el regex.
 
 ---
 
@@ -178,23 +178,85 @@ Para cambios que implican borrar regla de doc canónico, registrar aquí la regl
 
 ---
 
-## LIMPIEZA-PENDIENTE (Jose ejecuta manualmente desde Windows)
+## 2026-05-07
 
-Los siguientes archivos deben eliminarse manualmente (el sandbox Linux no puede escribir en `_archivo/` por anomalía del filesystem montado):
+- **[2026-05-07] OLA 1 — Higiene crítica · auditoría completa del proyecto:** Reconciliación de contradicciones detectadas en revisión exhaustiva de docs y código. Cambios atomicos:
 
-### Desde `sprint_1/` → mover a `_archivo/2026-04/sprint1_cleanup/`
-- `sprint_1/backup_log.txt` — contiene error de CMD, sin valor operativo
-- `sprint_1/publicacion_staging_20260421.txt` — reporte histórico April 21
-- `sprint_1/diag_angela.py` — diagnóstico puntual ya ejecutado
-- `sprint_1/diag_registros.py` — diagnóstico puntual ya ejecutado
+  - **`MASTER_RULES.md` v2.5 → v2.6**:
+    - **§17.11 retención backups:** "336 snapshots = ~14 días" → "168 snapshots = ~7 días". Fuente de verdad: `RETENTION_N` en `maintenance_60min.py`. **Regla vieja:** retención 336. **Razón:** triple contradicción entre §15.4 (168), §17.11 (336), código (168) y CLAUDE.md (336). Decisión Jose 2026-05-07: alinear todo al valor que el código ya ejecuta (168 = 7 días).
+    - **§22 / §23 desambiguados:** "Colaboración proactiva Claude" renumerada a §23 (era segundo §22).
+    - **§22 referencia a `MIGRACION_CLAUDE_CODE.md`:** archivo no existe. Reemplazada por nota: el plan vive solo en la tabla de §22 hasta que se redacte el archivo.
+    - **Footer:** "FIN MASTER_RULES v2.1" → "v2.6" (drift histórico de header vs footer).
 
-### Desde `_logs/` → mover a `_archivo/2026-04/pipeline_json_logs/`
-- 30 archivos `_logs/pipeline_davivienda_*.json` — outputs del pipeline (no son logs del mantenimiento)
+  - **`ESTADO_PROYECTO.md` v2.0 → v2.1**:
+    - §0 versíon de docs actualizadas: MASTER_RULES v2.0 → v2.6, MOM_DAVIVIENDA v1.0 → v1.5.
+    - §1 banner Davivienda: "R-DVV-01..12" → "R-DVV-01..18".
+    - §6 retención: "(336 retención)" → "(168 retención = 7 días, FIFO)".
+    - §7 viñeta "Memoria acumulativa (nada se borra, todo se versiona con [REVOCADA YYYY-MM-DD])" → BORRADA. **Regla vieja:** acumulativa con marcadores [REVOCADA] en docs canónicos. **Razón:** contradecía directamente MASTER_RULES §17.3 (política limpia: traza solo en CHANGELOG). Decisión Jose 2026-05-07: confirmar política limpia como Única.
 
-### Investigar y eliminar si confirma
-- `SOURCE_OF_TRUTH.md` en raíz — archivo fantasma de arquitectura anterior. Si José puede verlo y leerlo desde Windows, verificar si tiene contenido útil; si no, eliminarlo.
+  - **`CLAUDE.md`**: "FIFO retention 336 (~14 days)" → "FIFO retention 168 (~7 days)". Aclarado que `RETENTION_N` es la fuente de verdad.
 
-### Decisión pendiente (preguntar a Jose)
-- `sprint_1/validate_gemini.py` — smoke test Vertex AI. ¿Mantener para diagnósticos o archivar?
-- `sprint_1/validate_layout.py` — validador de layout Excel. ¿Mantener o archivar?
-- `sprint_1/INGENIERIA_INVERSA_EXCEL.md` — documentación de ingeniería inversa del Excel. ¿Mover a `sprint_1/docs/` o archivar?
+  - **`MANUAL_EXTRACTO_BANCOS.md`**:
+    - Reglas Generales: agregada regla explícita "UVR — EXCLUIDO del flujo (§1.2 / §17.10 / §20.10)".
+    - DAVIVIENDA Sistema de Amortización UVR: aclarado que el registro se EXCLUYE (antes solo decía cómo identificarlo, sin señalar la exclusión).
+
+  - **`maintenance/maintenance_60min.py`**:
+    - `BACKUP_TARGETS` limpiado: removidos `SOURCE_OF_TRUTH.md`, `PROMPT_DEFINITIVO_AGENTE.md`, `CRM.xlsx`, `BD.xlsx`, `tips_de_banco.csv`, `bank_rules/*.md`, `sprint_1/bank_rules/*.md`, `sprint_1/config.ini` (token leak risk). Agregados `MOM_DAVIVIENDA.md`, `CLAUDE.md`, `CHANGELOG.md`, `tips_de_banco.xlsx`, `sprint_1/docs/*.md`. **Regla vieja:** lista heredada con archivos consolidados o eliminados desde 2026-04-24. **Razón:** generaba ruido de anomalías falso-positivas cada hora y snapshoteaba un archivo sensible (token HubSpot).
+    - `REQUIRED_PATHS` actualizado: removido `SOURCE_OF_TRUTH.md` (fantasma); agregados `MOM_DAVIVIENDA.md`, `CHANGELOG.md`, `sprint_1/config_reglas.py`.
+    - Comentario de `RETENTION_N=168`: reescrito declarando que es la fuente de verdad.
+    - Texto de reporte STEP 7: reemplazada nota "respeta política nada se borra" por "política docs limpia (§17.3): traza en CHANGELOG, no en marcadores [REVOCADA]; STEP 7 reporta para revisión humana".
+
+  - **`CHANGELOG.md`**: secciones 2026-04-27 y 2026-04-28 reordenadas a cronología ascendente.
+
+  **Tests:** sin cambios (no hay deltas de constantes ni asserts). `RETENTION_N=168` ya estaba en código desde 2026-04-25.
+
+---
+
+- **[2026-05-07] OLA 2/B10 — Pre-commit hook (defense-in-depth):**
+
+  - **`.githooks/pre-commit`** (versionado, ejecutable mode 100755): hook Python que valida cada commit.
+    1. Bloquea secret leaks: `sprint_1/config.ini`, cualquier path bajo `credentials/`.
+    2. Bloquea IDs de Sheets en lista negra §3.4 (con allowlist para los 6 archivos que la documentan: MASTER_RULES, CHANGELOG, ESTADO, config_reglas, maintenance_60min, el propio hook).
+    3. Compila todos los `.py` staged (`py_compile`).
+    4. Corre `check_doc_code_drift()` (STEP 8) si cambian docs/código y bloquea si reporta drift.
+    Bypass: `git commit --no-verify` (debe registrarse en CHANGELOG con razón, §23.4).
+
+  - **`maintenance/install_hooks.cmd`**: instalador one-shot que configura `git config core.hooksPath .githooks`. Ejecutar UNA VEZ por clone.
+
+  - **MASTER_RULES §17.12**: documentación operativa del hook.
+
+  **Smoke tests realizados:**
+  - Hook con todos los cambios Ola 1+2 staged → OK (10 archivos)
+  - Hook con sintaxis Python rota → BLOQUEA con mensaje claro
+  - Hook con `sprint_1/config.ini` staged → BLOQUEA con referencia a §11.6/§20.9
+
+- **[2026-05-07] OLA 2 — Hardening · hash PESOS + drift checker:**
+
+  - **B6 — `sprint_1/config_reglas.py`**: agregada constante `PESOS_TEMPLATE_SHA256 = "d860270c34..."` (SHA256 del template `PESOS.xlsx` actual) y helper `verify_pesos_template(project_root)`. **Pipeline integrado:** `pipeline_davivienda.py::main()` valida la integridad del template antes de procesar pendientes; aborta con exit code 2 si el hash no coincide. Protege contra corrupción silenciosa de fórmulas/layout que romperían M2 sin diagnóstico claro. Para regenerar tras cambio intencional: documentar nuevo hash en config_reglas + CHANGELOG.
+
+  - **B4 — `maintenance/maintenance_60min.py` STEP 8 drift checker**: nueva función `check_doc_code_drift()` integrada en el ciclo horario. Detecta automáticamente: (a) header vs footer de versión en MASTER_RULES.md y ESTADO_PROYECTO.md, (b) versión que ESTADO §0 cita vs versión real de los docs, (c) hash PESOS.xlsx vs `PESOS_TEMPLATE_SHA256`, (d) `RETENTION_N` en código vs número de snapshots citado en MASTER_RULES §17.11, (e) referencias a archivos canónicos `.md` que no existen en raíz. Falla soft (reporte en `_logs/anomalies_<ts>.txt`), nunca bloquea pipeline. Documentado en MASTER_RULES §15.3 como STEP 8.
+
+  - **`MASTER_RULES.md` §22**: removida referencia condicional residual a `MIGRACION_CLAUDE_CODE.md` (drift checker la flageaba). Esta tabla es ahora la única fuente vigente.
+
+  **Smoke test post-Ola 2:** `check_doc_code_drift()` retorna 0 issues. `verify_pesos_template()` retorna ok=True con hash actual.
+
+---
+
+## LIMPIEZA-PENDIENTE — RESUELTA 2026-05-07
+
+Resolución por sesión Claude Code (Ola 1 higiene crítica):
+
+### Borrados via `git rm` (2026-05-07)
+- ✅ `sprint_1/backup_log.txt` (error CMD sin valor)
+- ✅ `sprint_1/diag_angela.py` (diagnóstico puntual superado)
+- ✅ `sprint_1/diag_registros.py` (diagnóstico puntual superado)
+- ✅ `sprint_1/validate_gemini.py` (smoke test Vertex AI ya cubierto por `test_fase2.py`)
+- ✅ `sprint_1/validate_layout.py` (validador layout ya cubierto por M2 `validar_excel_generado.py`)
+
+### Confirmado eliminado por Jose previamente
+- ✅ `SOURCE_OF_TRUTH.md` — no existe en filesystem.
+- ✅ `sprint_1/INGENIERIA_INVERSA_EXCEL.md` — ya está en `sprint_1/docs/` (movido 2026-04-25, registrado).
+- ✅ `sprint_1/publicacion_staging_*.txt` — gitignored (`.gitignore` línea 12), no entra al repo.
+
+### Filesystem (no tracked, no en git)
+- `_logs/pipeline_davivienda_*.json` (51 archivos a 2026-05-07): viven en filesystem del proyecto raíz, gitignored. Mantenimiento horario los rotará por su propia política (carpeta no es de su scope; si crecen, agregar limpieza específica a `maintenance_60min.py`).

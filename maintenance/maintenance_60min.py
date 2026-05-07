@@ -41,27 +41,27 @@ ARCHIVO_DIR = PROJECT_ROOT / "_archivo"
 LOGS_DIR = PROJECT_ROOT / "_logs"
 WHITELIST_PATH = HERE / "whitelist.txt"
 
-# Retencion: 1 semana a 1 corrida/hora = 24*7 (Jose 2026-04-25 política limpia)
-# Reducido desde 336 (~2 semanas) tras revocar política acumulativa.
+# Retencion: 168 snapshots = 7 dias a 1 corrida/hora (MASTER_RULES §17.11).
+# Esta constante es la FUENTE DE VERDAD; cualquier doc que cite otro valor esta stale.
 RETENTION_N = 168
 
-# Backup — lista de patrones (relativos a PROJECT_ROOT) a snapshotear
+# Backup — lista de patrones (relativos a PROJECT_ROOT) a snapshotear.
+# Limpieza 2026-05-07: removidos archivos consolidados (SOURCE_OF_TRUTH, PROMPT_DEFINITIVO,
+# CRM.xlsx, BD.xlsx, tips_de_banco.csv, bank_rules/) y config.ini (token leak risk —
+# si necesitas backup de config, usa snapshot manual cifrado en credentials/).
 BACKUP_TARGETS = [
     "MASTER_RULES.md",
-    "SOURCE_OF_TRUTH.md",
+    "MOM_DAVIVIENDA.md",
     "ESTADO_PROYECTO.md",
     "MANUAL_EXTRACTO_BANCOS.md",
-    "PROMPT_DEFINITIVO_AGENTE.md",
+    "CLAUDE.md",
+    "CHANGELOG.md",
     "PESOS.xlsx",
-    "CRM.xlsx",
-    "BD.xlsx",
-    "tips_de_banco.csv",
+    "tips_de_banco.xlsx",
     "run_pipeline.bat",
     "sprint_1/*.py",
-    "sprint_1/config.ini",  # cuidado: contiene token — ver §17
-    "sprint_1/bank_rules/*.md",
+    "sprint_1/docs/*.md",
     "automation/apps_script/*.gs",
-    "bank_rules/*.md",
     "maintenance/*.py",
     "maintenance/*.bat",
     "maintenance/*.cmd",
@@ -72,9 +72,11 @@ BACKUP_TARGETS = [
 # Rutas que se verifican existan (para el diff / anomalias)
 REQUIRED_PATHS = [
     PROJECT_ROOT / "MASTER_RULES.md",
-    PROJECT_ROOT / "SOURCE_OF_TRUTH.md",
+    PROJECT_ROOT / "MOM_DAVIVIENDA.md",
+    PROJECT_ROOT / "CHANGELOG.md",
     PROJECT_ROOT / "sprint_1" / "config.ini",
     PROJECT_ROOT / "sprint_1" / "hubspot_client.py",
+    PROJECT_ROOT / "sprint_1" / "config_reglas.py",
 ]
 
 # Patrones que NUNCA deben aparecer en codigo/docs (lista negra BD, etc.)
@@ -251,7 +253,7 @@ def check_hubspot_token() -> str | None:
 def write_anomaly_report(findings: dict, ts: str) -> Path | None:
     has_issues = any(v for k, v in findings.items() if k != "memory") or (
         findings.get("memory") and findings["memory"].get("has_issues")
-    )
+    ) or bool(findings.get("drift"))
     if not has_issues:
         return None
     path = LOGS_DIR / f"anomalies_{ts}.txt"
@@ -275,6 +277,12 @@ def write_anomaly_report(findings: dict, ts: str) -> Path | None:
             rel = fp.relative_to(PROJECT_ROOT)
             lines.append(f"  - {rel}  ← {pat}  [{reason}]")
         lines.append("")
+    if findings.get("drift"):
+        lines.append("## Drift docs ↔ codigo (STEP 8, 2026-05-07)")
+        for d in findings["drift"]:
+            lines.append(f"  - {d}")
+        lines.append("  ACCION: alinear el doc o el codigo y registrar en CHANGELOG.")
+        lines.append("")
     mem = findings.get("memory") or {}
     if mem.get("has_issues"):
         lines.append("## Memoria operativa del agente (STEP 7, 2026-04-23)")
@@ -294,8 +302,9 @@ def write_anomaly_report(findings: dict, ts: str) -> Path | None:
                 lines.append(f"      * {name}  (ult. mod {fecha})")
         if mem.get("changelog_stale"):
             lines.append(f"  - CHANGELOG.md sin entradas nuevas (ult. mod {mem.get('changelog_last')})")
-        lines.append("  NOTA: reporte solamente. Respeta politica 'nada se borra'"
-                     " (feedback_memoria_acumulativa_total).")
+        lines.append("  NOTA: reporte solamente. Politica docs limpia (MASTER_RULES §17.3):"
+                     " la traza de cambios va a CHANGELOG.md, no a marcadores [REVOCADA]"
+                     " en docs canonicos. STEP 7 reporta para revisar, no poda automaticamente.")
         lines.append("")
     path.write_text("\n".join(lines), encoding="utf-8")
     return path
@@ -444,6 +453,106 @@ def check_memory_health() -> dict:
 # -----------------------------------------------------------------------------
 # Paso 4 — Limpieza raiz
 # -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+# Paso 8 — Drift checker (2026-05-07)
+# Detecta inconsistencias estructurales entre docs canonicos y codigo:
+#   - Header version != Footer version del mismo doc
+#   - PESOS.xlsx hash != PESOS_TEMPLATE_SHA256
+#   - RETENTION_N en codigo != menciones explicitas en MASTER_RULES
+#   - Referencias a archivos canonicos inexistentes desde docs
+#   - ESTADO_PROYECTO version stale respecto a MASTER_RULES/MOM
+# -----------------------------------------------------------------------------
+def check_doc_code_drift() -> list[str]:
+    """Retorna lista de mensajes de drift. Vacia = sin problemas."""
+    issues: list[str] = []
+
+    def _read(p: Path) -> str:
+        try:
+            return p.read_text(encoding="utf-8")
+        except Exception:
+            return ""
+
+    import re as _re
+
+    # 1) Header vs footer en MASTER_RULES.md
+    mr_path = PROJECT_ROOT / "MASTER_RULES.md"
+    mr_text = _read(mr_path)
+    if mr_text:
+        m_head = _re.search(r"\*\*Versi[oó]n:\*\*\s*([\d.]+)", mr_text)
+        m_foot = _re.search(r"FIN MASTER_RULES v([\d.]+)", mr_text)
+        if m_head and m_foot and m_head.group(1) != m_foot.group(1):
+            issues.append(
+                f"MASTER_RULES.md: header v{m_head.group(1)} != footer v{m_foot.group(1)}"
+            )
+
+    # 2) Header vs footer en ESTADO_PROYECTO.md
+    es_path = PROJECT_ROOT / "ESTADO_PROYECTO.md"
+    es_text = _read(es_path)
+    if es_text:
+        m_head = _re.search(r"\*\*Versi[oó]n:\*\*\s*([\d.]+)", es_text)
+        m_foot = _re.search(r"FIN ESTADO_PROYECTO v([\d.]+)", es_text)
+        if m_head and m_foot and m_head.group(1) != m_foot.group(1):
+            issues.append(
+                f"ESTADO_PROYECTO.md: header v{m_head.group(1)} != footer v{m_foot.group(1)}"
+            )
+
+    # 3) ESTADO §0 cita MASTER_RULES/MOM con version stale
+    if es_text and mr_text:
+        m_es_master = _re.search(r"MASTER_RULES\.md`?\s*\(v([\d.]+)\)", es_text)
+        m_real = _re.search(r"\*\*Versi[oó]n:\*\*\s*([\d.]+)", mr_text)
+        if m_es_master and m_real and m_es_master.group(1) != m_real.group(1):
+            issues.append(
+                f"ESTADO_PROYECTO §0 cita MASTER_RULES v{m_es_master.group(1)} "
+                f"pero el archivo es v{m_real.group(1)}"
+            )
+    mom_path = PROJECT_ROOT / "MOM_DAVIVIENDA.md"
+    mom_text = _read(mom_path)
+    if es_text and mom_text:
+        m_es_mom = _re.search(r"MOM_DAVIVIENDA\.md`?\s*\(v([\d.]+)\)", es_text)
+        m_real_mom = _re.search(r"\*\*Versi[oó]n:\*\*\s*([\d.]+)", mom_text)
+        if m_es_mom and m_real_mom and m_es_mom.group(1) != m_real_mom.group(1):
+            issues.append(
+                f"ESTADO_PROYECTO §0 cita MOM_DAVIVIENDA v{m_es_mom.group(1)} "
+                f"pero el archivo es v{m_real_mom.group(1)}"
+            )
+
+    # 4) PESOS.xlsx hash vs config_reglas.PESOS_TEMPLATE_SHA256
+    try:
+        sys.path.insert(0, str(PROJECT_ROOT / "sprint_1"))
+        from config_reglas import verify_pesos_template  # type: ignore
+        ok, msg = verify_pesos_template(PROJECT_ROOT)
+        if not ok:
+            issues.append(f"PESOS.xlsx: {msg}")
+    except Exception as exc:
+        issues.append(f"No se pudo verificar PESOS.xlsx hash: {exc}")
+
+    # 5) RETENTION_N (este script) consistente con MASTER_RULES §17.11
+    if mr_text:
+        # Busca el numero de snapshots citado en §17.11
+        m_ret = _re.search(r"Retenci[oó]n:\s*\*?\*?(\d+)\s*snapshots", mr_text)
+        if m_ret:
+            doc_n = int(m_ret.group(1))
+            if doc_n != RETENTION_N:
+                issues.append(
+                    f"Retencion drift: codigo RETENTION_N={RETENTION_N} != "
+                    f"MASTER_RULES §17.11 cita {doc_n}"
+                )
+
+    # 6) Referencias a archivos canonicos inexistentes desde MASTER_RULES
+    if mr_text:
+        for ref in _re.findall(r"`([A-Z][A-Z0-9_]+\.md)`", mr_text):
+            ref_path = PROJECT_ROOT / ref
+            if not ref_path.exists():
+                # Excepciones: archivos genericos referenciados como pattern
+                if ref.startswith("MOM_") and ref != "MOM_DAVIVIENDA.md":
+                    continue  # MOM_<BANCO>.md futuros
+                issues.append(
+                    f"MASTER_RULES referencia `{ref}` que no existe en raiz"
+                )
+
+    return issues
+
+
 def clean_root(patterns: list[str], dry_run: bool) -> list[tuple[Path, Path]]:
     """Mueve archivos sueltos en raiz NO whitelisted a _archivo/YYYY-MM/.
     Retorna lista [(src, dst)] de lo que se movio (o se moveria en dry-run)."""
@@ -514,10 +623,12 @@ def main() -> int:
         "hubspot": check_hubspot_token(),
         "forbidden": scan_forbidden_patterns(),
         "memory": check_memory_health(),  # STEP 7 (2026-04-23)
+        "drift": check_doc_code_drift(),  # STEP 8 (2026-05-07)
     }
     summary["anom_missing"] = len(findings["missing"])
     summary["anom_hubspot"] = 1 if findings["hubspot"] else 0
     summary["anom_forbidden"] = len(findings["forbidden"])
+    summary["anom_drift"] = len(findings["drift"])
     mem = findings["memory"]
     summary["mem_available"] = mem["available"]
     summary["mem_pointers"] = mem["pointers"]

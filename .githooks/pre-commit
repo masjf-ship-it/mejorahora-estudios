@@ -1,0 +1,135 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""
+MejorAhora pre-commit hook (B10).
+=================================
+Defense-in-depth liviano. Bloquea el commit si:
+  1. Se intenta commitear secrets (sprint_1/config.ini, credentials/)
+  2. Aparece un Sheet ID de la lista negra MASTER_RULES §3.4
+  3. Algun .py staged tiene error de sintaxis
+  4. STEP 8 drift checker (maintenance_60min) reporta inconsistencias
+     entre docs canonicos y codigo
+
+Activacion (una sola vez por clone):
+    maintenance\\install_hooks.cmd        (Windows)
+    git config core.hooksPath .githooks   (Linux/Mac)
+
+Bypass de emergencia: git commit --no-verify (NO recomendado).
+"""
+from __future__ import annotations
+
+import py_compile
+import subprocess
+import sys
+from pathlib import Path
+
+
+def _git(*args: str) -> str:
+    return subprocess.check_output(["git", *args], text=True, encoding="utf-8")
+
+
+ROOT = Path(_git("rev-parse", "--show-toplevel").strip())
+
+BLACKLIST_IDS = (
+    "1UbQ_Ghb0dmeCWAmEJNdFGkBsbK6PNWr6T48Pi-nTdd8",
+    "1fsop9wgv1HvRxREnYQGopR7d3TSUhlIFU4bm6QQ0ykM",
+)
+# Archivos que definen/documentan la lista negra (se permite que la mencionen).
+BLACKLIST_ALLOWLIST = {
+    "MASTER_RULES.md",
+    "CHANGELOG.md",
+    "ESTADO_PROYECTO.md",
+    "sprint_1/config_reglas.py",
+    "maintenance/maintenance_60min.py",
+    ".githooks/pre-commit",
+}
+FORBIDDEN_PATHS = (
+    "sprint_1/config.ini",
+    "credentials/",
+)
+SCANNABLE_EXTS = {".py", ".md", ".txt", ".ini", ".bat", ".cmd", ".gs", ".json", ".yml", ".yaml"}
+
+
+def staged_files() -> list[str]:
+    out = _git("diff", "--cached", "--name-only", "--diff-filter=ACM")
+    return [line.strip() for line in out.splitlines() if line.strip()]
+
+
+def main() -> int:
+    files = staged_files()
+    if not files:
+        return 0
+
+    errors: list[str] = []
+
+    for rel in files:
+        full = ROOT / rel
+        rel_norm = rel.replace("\\", "/")
+
+        # 1) Paths prohibidos (secrets)
+        for forbidden in FORBIDDEN_PATHS:
+            if rel_norm == forbidden or rel_norm.startswith(forbidden):
+                errors.append(
+                    f"SECRET LEAK: '{rel_norm}' no debe commitearse "
+                    f"(MASTER_RULES §11.6 / §20.9). Usa .gitignore o snapshots cifrados."
+                )
+
+        if not full.is_file():
+            continue
+
+        # 2) IDs lista negra (excepto en archivos que la definen)
+        if full.suffix.lower() in SCANNABLE_EXTS and rel_norm not in BLACKLIST_ALLOWLIST:
+            try:
+                text = full.read_text(encoding="utf-8", errors="ignore")
+            except Exception:
+                text = ""
+            for bid in BLACKLIST_IDS:
+                if bid in text:
+                    errors.append(
+                        f"BLACKLIST ID en '{rel_norm}': {bid} (MASTER_RULES §3.4 / §20.1)"
+                    )
+
+        # 3) Python compile
+        if full.suffix == ".py":
+            try:
+                py_compile.compile(str(full), doraise=True)
+            except py_compile.PyCompileError as exc:
+                msg = str(exc).strip().splitlines()[0] if str(exc).strip() else "syntax error"
+                errors.append(f"PYTHON SYNTAX en '{rel_norm}': {msg}")
+
+    # 4) Drift checker (solo si cambian docs o codigo relevante)
+    relevant = any(
+        Path(f).suffix in {".md", ".py"} or Path(f).name == "PESOS.xlsx"
+        for f in files
+    )
+    if relevant:
+        sys.path.insert(0, str(ROOT / "maintenance"))
+        try:
+            from maintenance_60min import check_doc_code_drift  # type: ignore
+            drift = check_doc_code_drift()
+            for d in drift:
+                errors.append(f"DRIFT (STEP 8): {d}")
+        except Exception as exc:
+            # No bloquear si el checker tiene un problema de import.
+            print(
+                f"[pre-commit] WARN: drift checker no disponible ({exc})",
+                file=sys.stderr,
+            )
+
+    if errors:
+        print("\n[pre-commit] COMMIT BLOQUEADO:", file=sys.stderr)
+        for e in errors:
+            print(f"  - {e}", file=sys.stderr)
+        print(
+            "\nResolver el problema o, en emergencia: git commit --no-verify\n"
+            "(MASTER_RULES §22.4 — registrar el riesgo en CHANGELOG si saltas el hook).",
+            file=sys.stderr,
+        )
+        return 1
+
+    print(f"[pre-commit] OK ({len(files)} file{'s' if len(files) != 1 else ''} staged)")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

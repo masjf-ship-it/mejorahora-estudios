@@ -1112,6 +1112,17 @@ def main():
     print(f"[pipeline_davivienda] template={cfg['template']}")
     print(f"[pipeline_davivienda] salida={cfg['salida']}")
 
+    # Integridad PESOS.xlsx: bloquea ejecucion si el template fue alterado fuera
+    # del flujo de control (ver config_reglas.PESOS_TEMPLATE_SHA256).
+    from config_reglas import verify_pesos_template
+    ok_template, msg_template = verify_pesos_template(PROJECT_ROOT)
+    print(f"[pipeline_davivienda] {msg_template}")
+    if not ok_template:
+        print("[pipeline_davivienda] ABORT: template corrupto. Si el cambio fue "
+              "intencional, regenera el hash en config_reglas.py y registra el "
+              "cambio en CHANGELOG.")
+        return 2
+
     gc, drive = drive_client.get_clients()
     hs = HubSpotClient.from_config()
 

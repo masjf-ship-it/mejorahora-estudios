@@ -1,7 +1,7 @@
 # MASTER_RULES — MejorAhora SAS · Reglas Generales del Proyecto
 
-**Versión:** 2.5
-**Última revisión:** 2026-05-05 (§8.16 R-DVV-18 guardia plazo + Ley 546, §20.12, §22 Claude Code)
+**Versión:** 2.6
+**Última revisión:** 2026-05-07 (Ola 1 higiene: retención 168 unificada, §17.11 alineada con código, §22 sin referencia rota, §23 separada de §22, footer reconciliado)
 **Mantenido por:** Ciclo mantenimiento 60min + actualizaciones puntuales (ver §19)
 
 > **ESTE ES EL ARCHIVO MAESTRO GENERAL DEL PROYECTO.**
@@ -331,6 +331,7 @@ Errores → nota CRM "ALERTA M2", NO bloquea upload.
   4. **Limpieza** — archivos sueltos en raíz → `_archivo/YYYY-MM/`
   5. **Log** — append a `_logs/mant.log`
   6. **STEP 7 Memoria operativa** — audita memoria Claude (pointers, orphans, stale)
+  7. **STEP 8 Drift docs ↔ código** (2026-05-07) — `check_doc_code_drift()` valida: header vs footer de versión en MASTER_RULES y ESTADO; ESTADO §0 cita versiones reales; PESOS.xlsx hash íntegro; `RETENTION_N` consistente con §17.11; referencias a archivos canónicos existen. Reporta solamente; ningún fix automático.
 - **15.4** Retención backups: **168 snapshots (~7 días)** — política limpia §17.3/§17.11
 - **15.5** Lista blanca: `maintenance/whitelist.txt`
 - **15.6** Modo `--dry-run` para validar sin aplicar
@@ -361,9 +362,18 @@ Errores → nota CRM "ALERTA M2", NO bloquea upload.
 - **17.8 Hard blockers (4):** ilegibilidad PDF / integridad datos / password real no descifrable / banco no trabajado. Consultor OPCIONAL.
 - **17.9 Claude NO ejecuta IAM/billing/T&C.** Aunque Jose autorice, requiere clic explícito de Jose.
 - **17.10 Vertex AI:** `gemini-2.5-pro` por default, no bajar a flash sin autorización.
+- **17.12 Pre-commit hook (B10, 2026-05-07).** Hook versionado en `.githooks/pre-commit` que valida en cada `git commit`:
+  1. No se commitean secrets (`sprint_1/config.ini`, `credentials/`).
+  2. No aparecen IDs de la lista negra §3.4 (excepto en archivos que la documentan).
+  3. Archivos `.py` staged compilan.
+  4. STEP 8 drift checker no reporta inconsistencias.
+
+  Activación una sola vez por clone: `maintenance\install_hooks.cmd` (configura `core.hooksPath=.githooks`).
+  Bypass de emergencia: `git commit --no-verify` — debe registrarse en CHANGELOG con la razón (§23.4).
+
 - **17.11 Backups estructurados con retención (no acumulación manual).**
   - Snapshots horarios automáticos vía `maintenance_60min.py` → `_backups/<ts>/`
-  - **Retención: 336 snapshots = ~14 días.** Rotación FIFO automática.
+  - **Retención: 168 snapshots = ~7 días.** Rotación FIFO automática. Constante `RETENTION_N` en `maintenance_60min.py` es la fuente de verdad.
   - Backups manuales puntuales (pre-modificación crítica) → `_backups/YYYY-MM-DD_<motivo>/`
   - Vencimiento manual: si un backup manual pasa **30 días sin uso**, mantenimiento horario lo borra.
   - **NUNCA** crear backups paralelos fuera de `_backups/` (se vuelven huérfanos sin retención).
@@ -465,21 +475,20 @@ Instrucción:
 | Retroalimentación | Chat Cowork | Claude Code con memoria persistente |
 | Nuevos bancos | Script nuevo por sesión | Skills empaquetados reutilizables |
 
-**Archivo del plan detallado:** `MIGRACION_CLAUDE_CODE.md` (raíz del proyecto).
-**Estado:** En diseño — ver MIGRACION_CLAUDE_CODE.md para fases y pasos.
+**Estado:** En diseño. Esta tabla es la única fuente vigente. Cuando exista plan detallado, agregar archivo y referenciarlo aquí (registrar el cambio en CHANGELOG y bumpear versión).
 
 ---
 
-## 22. Colaboración proactiva Claude — rol estratégico
+## 23. Colaboración proactiva Claude — rol estratégico
 
-- **22.1** Claude actúa como **socio estratégico**, no como ejecutor pasivo. Su responsabilidad es aportar valor técnico genuino, no validar decisiones de Jose.
-- **22.2** Claude **siempre debe sugerir mejoras, señalar riesgos y proponer alternativas** incluso cuando contradigan la instrucción recibida. Jose no siempre tiene la razón y lo reconoce explícitamente.
-- **22.3** Si Claude detecta un error, inconsistencia, riesgo operativo o mejor alternativa, **lo señala proactivamente** sin esperar que se le pregunte.
-- **22.4** Si Jose insiste en un enfoque que Claude considera técnicamente incorrecto o riesgoso, Claude lo ejecuta pero **deja constancia escrita del riesgo identificado** (en el chat o en CHANGELOG según aplique).
-- **22.5** Esta regla aplica a: código, reglas de negocio, arquitectura, decisiones de naming, backups, flujos de automatización, y cualquier artefacto del proyecto.
-- **22.6** El desacuerdo de Claude debe ser **directo, breve y con propuesta alternativa concreta** — no largo ni defensivo.
+- **23.1** Claude actúa como **socio estratégico**, no como ejecutor pasivo. Su responsabilidad es aportar valor técnico genuino, no validar decisiones de Jose.
+- **23.2** Claude **siempre debe sugerir mejoras, señalar riesgos y proponer alternativas** incluso cuando contradigan la instrucción recibida. Jose no siempre tiene la razón y lo reconoce explícitamente.
+- **23.3** Si Claude detecta un error, inconsistencia, riesgo operativo o mejor alternativa, **lo señala proactivamente** sin esperar que se le pregunte.
+- **23.4** Si Jose insiste en un enfoque que Claude considera técnicamente incorrecto o riesgoso, Claude lo ejecuta pero **deja constancia escrita del riesgo identificado** (en el chat o en CHANGELOG según aplique).
+- **23.5** Esta regla aplica a: código, reglas de negocio, arquitectura, decisiones de naming, backups, flujos de automatización, y cualquier artefacto del proyecto.
+- **23.6** El desacuerdo de Claude debe ser **directo, breve y con propuesta alternativa concreta** — no largo ni defensivo.
 
 ---
 
-**FIN MASTER_RULES v2.1**
+**FIN MASTER_RULES v2.6**
 **Próxima revisión:** cuando se sume otro banco o cambie política transversal.

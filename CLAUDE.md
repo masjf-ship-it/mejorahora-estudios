@@ -170,7 +170,7 @@ The pipeline writes only to the STAGING tab (Sheet `1_9FUAo8cSrLDWAkJlNoy29Cmyh9
 
 ## Backups & file hygiene (MASTER_RULES §17.11)
 
-- Hourly auto-snapshots: `_backups/<timestamp>/`, FIFO retention 336 (~14 days), managed by `maintenance_60min.py`.
+- Hourly auto-snapshots: `_backups/<timestamp>/`, FIFO retention 168 (~7 days), managed by `maintenance_60min.py` (constant `RETENTION_N` is the source of truth).
 - Manual pre-change snapshots: `_backups/YYYY-MM-DD_<motivo>/`. Auto-deleted after 30 days idle.
 - **Never create backup folders outside `_backups/`** — they become orphans without retention.
 - Permanent snapshots: `credentials/snapshot_permanente_<motivo>.zip` and document in CHANGELOG.

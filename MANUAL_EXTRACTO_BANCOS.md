@@ -7,11 +7,12 @@ Este documento contiene los tips técnicos para la extracción precisa de datos 
 - **Sin Tildes**: Nunca usar tildes en el nombre del cliente ni del banco.
 - **Números de Crédito**: Capturar completo, incluyendo guiones si existen (ej. `xxxxx-x`).
 - **Tasas**: Convertir a decimal (ej. `12,50%` -> `0,1250`).
+- **UVR — EXCLUIDO del flujo (MASTER_RULES §1.2 / §17.10 / §20.10)**: si la amortización es UVR, el registro NO se procesa. El cheatsheet describe cómo reconocerlo solo para identificar y descartar.
 
 ---
 
 ## DAVIVIENDA
-- **Sistema de Amortización**: Si aparece el signo `$` en esta fila, el sistema es **UVR**.
+- **Sistema de Amortización**: Si aparece el signo `$` en esta fila, el sistema es **UVR** → **registro EXCLUIDO** (ver Reglas Generales arriba).
 - **Cuota Mensual (Mora)**: Si el extracto indica mora, usar el valor de la casilla `Valor Cuota Mes`.
 - **Seguros**: Hoja 2. Si el desglose superior está en $0 o hay mora, usar el total de la casilla `+ Seguros:` (sección "Nuevo Saldo").
 - **Capital Adeudado**: Ver casilla `Saldo a la Fecha de Corte:`.
