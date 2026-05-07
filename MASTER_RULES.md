@@ -335,7 +335,7 @@ Errores → nota CRM "ALERTA M2", NO bloquea upload.
   5. **Log** — append a `_logs/mant.log`
   6. **STEP 7 Memoria operativa** — audita memoria Claude (pointers, orphans, stale)
   7. **STEP 8 Drift docs ↔ código** (2026-05-07) — `check_doc_code_drift()` valida: header vs footer de versión en MASTER_RULES y ESTADO; ESTADO §0 cita versiones reales; PESOS.xlsx hash íntegro; `RETENTION_N` consistente con §17.11; referencias a archivos canónicos existen. Reporta solamente; ningún fix automático.
-- **15.4** Retención backups: **168 snapshots (~7 días)** — política limpia §17.3/§17.11
+- **15.4** Retención: backups horarios **168 snapshots (~7 días)** + logs pipeline JSON **30 días por fecha del archivo** (constantes `RETENTION_N` y `RETENTION_PIPELINE_LOGS_DAYS` en `maintenance_60min.py` son fuente de verdad — política limpia §17.3/§17.11)
 - **15.5** Lista blanca: `maintenance/whitelist.txt`
 - **15.6** Modo `--dry-run` para validar sin aplicar
 - **15.7** Reportes citan `§X.Y` de este archivo

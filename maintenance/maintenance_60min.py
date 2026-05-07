@@ -198,6 +198,46 @@ def rotate_backups(keep_n: int, dry_run: bool) -> int:
     return removed
 
 
+# Retencion logs pipeline JSON: 30 dias = 30 corridas/dia * 30 = 900 max razonable.
+# Diferente de RETENTION_N (snapshots backup horarios). 2026-05-07: pre-fix se
+# acumulaban sin limite (51 archivos en 30 dias).
+RETENTION_PIPELINE_LOGS_DAYS = 30
+
+
+def rotate_pipeline_logs(keep_days: int, dry_run: bool) -> int:
+    """Borra `_logs/pipeline_davivienda_*.json` mas antiguos que keep_days.
+
+    El nombre incluye fecha YYYYMMDD, asi que la rotacion es por fecha del
+    log (no mtime), lo que es mas preciso si los archivos se copian/mueven.
+    """
+    import re as _re
+    if not LOGS_DIR.exists():
+        return 0
+    pat = _re.compile(r"^pipeline_davivienda_(\d{8})_\d{6}\.json$")
+    cutoff = dt.date.today() - dt.timedelta(days=keep_days)
+    candidatos = []
+    for p in LOGS_DIR.iterdir():
+        m = pat.match(p.name)
+        if not m:
+            continue
+        try:
+            fecha = dt.datetime.strptime(m.group(1), "%Y%m%d").date()
+        except ValueError:
+            continue
+        if fecha < cutoff:
+            candidatos.append(p)
+    if dry_run:
+        return len(candidatos)
+    removed = 0
+    for p in candidatos:
+        try:
+            p.unlink()
+            removed += 1
+        except Exception:
+            pass
+    return removed
+
+
 # -----------------------------------------------------------------------------
 # Paso 2 y 3 — Diff + Reporte
 # -----------------------------------------------------------------------------
@@ -616,6 +656,11 @@ def main() -> int:
     # Rotacion
     rotated = rotate_backups(RETENTION_N, dry_run)
     summary["backup_rotated"] = rotated
+
+    # Rotacion logs pipeline (2026-05-07): _logs/pipeline_davivienda_*.json
+    # crecian sin limite (51 archivos en 30 dias pre-rotation).
+    rotated_logs = rotate_pipeline_logs(RETENTION_PIPELINE_LOGS_DAYS, dry_run)
+    summary["pipeline_logs_rotated"] = rotated_logs
 
     # Paso 2 — Diff
     findings = {

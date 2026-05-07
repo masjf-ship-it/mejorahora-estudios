@@ -212,6 +212,16 @@ Para cambios que implican borrar regla de doc canónico, registrar aquí la regl
 
 ---
 
+- **[2026-05-07] OLA 2 cleanup — rotación logs pipeline + más tests pytest:**
+
+  - **`maintenance/maintenance_60min.py`**: nueva función `rotate_pipeline_logs()` integrada al ciclo horario. Borra archivos `_logs/pipeline_davivienda_YYYYMMDD_HHMMSS.json` con fecha (parseada del nombre, no `mtime`) anterior a 30 días. Constante `RETENTION_PIPELINE_LOGS_DAYS = 30`. **Razón:** pre-fix se acumulaban sin límite (51 archivos en 30 días para 2026-05-07). MASTER_RULES §15.4 actualizada.
+
+  - **`sprint_1/tests/test_m1.py`** (nuevo): migración a pytest de los 5 tests M1 del suite golden (TESTS I/J/K/L/M de `test_fase2.py`) + parametrize de rangos de `tasa_ea`. **9 tests pytest nuevos**, todos pasan. Total pytest suite: 9 → **18/18 PASS**. El suite lineal `test_fase2.py` se mantiene intacto (16/16 PASS) — co-existen.
+
+  - **MASTER_RULES §15.4**: aclarada la doble retención (backups horarios 168 / logs JSON 30 días).
+
+  Smoke tests post: `test_fase2.py` 16/16, pytest 18/18, drift 0, rotate dry-run lista 0 archivos a borrar (todos dentro de ventana 30d).
+
 - **[2026-05-07] FIX-EXCEPTION-22 — Bugs reproducibles del pipeline detectados via métricas B5:**
 
   Las métricas semanales (`metricas_pipeline.py`) revelaron **22 EXCEPTION históricas** en los últimos 30 días. Análisis post-mortem identificó 4 categorías y 2 bugs reproducibles fixables:
