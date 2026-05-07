@@ -1,0 +1,41 @@
+# whitelist.txt — archivos/carpetas permitidos en raiz de ESTUDIOS CLAUDE/
+# Una entrada por linea. Patrones glob admitidos (fnmatch).
+# Lineas vacias o que empiezan con # se ignoran.
+# Cualquier ARCHIVO en raiz que NO matchee aqui se mueve a _archivo/YYYY-MM/.
+# Las CARPETAS nunca se mueven — solo se listan archivos sueltos en raiz.
+#
+# Actualizado 2026-04-25 post-consolidacion arquitectura limpia.
+
+# --- Docs canonicas ---
+MASTER_RULES.md
+MOM_*.md
+CHANGELOG.md
+ESTADO_PROYECTO.md
+MANUAL_EXTRACTO_BANCOS.md
+README*.md
+
+# --- Excel operativos ---
+PESOS.xlsx
+tips_de_banco.xlsx
+
+# --- Bats operativos ---
+run_pipeline.bat
+cleanup_workspace.bat
+
+# --- Excel lock files (ignorar — temporales de Office) ---
+.~lock*
+~$*
+
+# --- Carpetas (nunca se mueven) ---
+_backups
+_archivo
+_logs
+sprint_1
+outputs
+maintenance
+credentials
+automation
+.vscode
+.git
+.gitignore
+MOM_DAVIVIENDA.md

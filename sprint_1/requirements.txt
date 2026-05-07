@@ -1,0 +1,7 @@
+# Sprint 1: Motor de Cálculo Financiero
+# No requiere dependencias externas — 100% stdlib Python 3.10+
+# numpy-financial NO es necesario (PMT implementado manualmente)
+
+# Solo para desarrollo/testing:
+pytest>=7.0
+pytest-cov>=4.0

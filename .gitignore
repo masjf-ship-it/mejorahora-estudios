@@ -1,0 +1,39 @@
+# Secrets — MASTER_RULES §11.6
+credentials/
+sprint_1/config.ini
+
+# Backups & operational state
+_backups/
+_archivo/
+_logs/
+outputs/
+sprint_1/_backups/
+sprint_1/output/
+sprint_1/publicacion_staging_*.txt
+
+# Claude Code per-user settings
+.claude/settings.local.json
+
+# Diagnostics (per §18 they are transient capture files)
+diag_*.txt
+*_diag.txt
+sprint_1/diag_*.txt
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.venv/
+venv/
+
+# OS
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
+*.swp
