@@ -5,7 +5,7 @@
 > **Precedencia:** banco-específico (este archivo) gana sobre general (MASTER_RULES) en caso de contradicción.
 > **Pipeline:** `sprint_1/pipeline_davivienda.py`
 > **Constantes centralizadas:** `sprint_1/config_reglas.py`
-> **Tests:** `sprint_1/test_fase2.py` (15 tests A-O)
+> **Tests:** `sprint_1/test_fase2.py` (16 tests A-P)
 
 ---
 
@@ -338,7 +338,7 @@ py drive_oauth_setup.py                   ← re-autenticar si invalid_grant
 ```cmd
 py sprint_1\test_fase2.py > diag_fase2.txt 2>&1
 ```
-**Esperado:** 15/15 PASS (A-O).
+**Esperado:** 16/16 PASS (A-P).
 
 ---
 

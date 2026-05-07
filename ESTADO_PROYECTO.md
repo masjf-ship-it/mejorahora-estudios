@@ -1,6 +1,6 @@
 # ESTADO_PROYECTO — Roadmap & Dashboard MejorAhora Estudios
 
-**Versión:** 2.1 · 2026-05-07
+**Versión:** 2.2 · 2026-05-07
 **Rol:** Dashboard de progreso. NO es fuente de reglas (ver `MASTER_RULES.md` y `MOM_<BANCO>.md`).
 
 ---
@@ -8,7 +8,7 @@
 ## 0. Reglas vigentes
 
 > **REGLAS Y REFERENCIA:** este archivo NO contiene reglas. Solo estado.
-> - Reglas generales: `MASTER_RULES.md` (v2.6)
+> - Reglas generales: `MASTER_RULES.md` (v2.7)
 > - Reglas Davivienda: `MOM_DAVIVIENDA.md` (v1.5)
 > - Constantes código: `sprint_1/config_reglas.py`
 > - Cheatsheet bancos: `MANUAL_EXTRACTO_BANCOS.md`
@@ -20,7 +20,7 @@
 
 | Banco | Estado | Pipeline | Tests | Notas |
 |---|---|---|---|---|
-| **DAVIVIENDA** | ✅ OPERATIVO | `pipeline_davivienda.py` | 15/15 PASS (A-O) | R-DVV-01..18 + §3a-3e activas. MOM_DAVIVIENDA.md vigente. |
+| **DAVIVIENDA** | ✅ OPERATIVO | `pipeline_davivienda.py` | 16/16 PASS (A-P) | R-DVV-01..18 + §3a-3e activas. MOM_DAVIVIENDA.md vigente. |
 | BANCOLOMBIA | 🟡 PENDIENTE | — | — | Próximo en cola. Construir `extract_bancolombia_pdf.py` + `MOM_BANCOLOMBIA.md` |
 | CAJA SOCIAL | 🟡 PENDIENTE | — | — | Tras Bancolombia |
 | FNA | ⚪ BACKLOG | — | — | — |
@@ -105,7 +105,7 @@ Ver `MOM_DAVIVIENDA.md §6` para tabla completa de casos validados.
 - `sprint_1/excel_populator.py` — inyecta datos en PESOS.xlsx
 - `sprint_1/validar_extraccion_davivienda.py` — M1
 - `sprint_1/validar_excel_generado.py` — M2
-- `sprint_1/test_fase2.py` — 15 tests golden
+- `sprint_1/test_fase2.py` — 16 tests golden
 - `sprint_1/config_reglas.py` — constantes centralizadas
 - `sprint_1/listar_pendientes_hoy.py` — publicador STAGING
 - `maintenance/maintenance_60min.py` — mantenimiento horario + STEP 7
@@ -126,11 +126,11 @@ Las decisiones operativas viven en MASTER_RULES.md y MOM_<BANCO>.md. Aquí solo 
 
 - **Banco por banco** (no paralelo). Validar al 100% antes de avanzar.
 - **Davivienda primero** (mayor volumen + mayor cantidad de extractos disponibles).
-- **Cero errores antes de escalar** (15 tests golden + M1 + M2 + STEP 7 antes de procesar volumen).
+- **Cero errores antes de escalar** (16 tests golden + M1 + M2 + STEP 7 antes de procesar volumen).
 - **Política docs limpia** (MASTER_RULES §17.3): cuando una regla se revoca se BORRA del doc canónico; la traza histórica vive EXCLUSIVAMENTE en `CHANGELOG.md`. No se acumulan marcadores `[REVOCADA]` en MASTER_RULES/MOM.
 - **Cualquier cambio de regla** requiere patrón formal "Actualización de Constitución Operativa" (ver `MASTER_RULES §19`).
 
 ---
 
-**FIN ESTADO_PROYECTO v2.1**
+**FIN ESTADO_PROYECTO v2.2**
 **Próxima revisión:** cuando se sume Bancolombia o se completen 5+ días consecutivos sin errores.

@@ -1,7 +1,16 @@
-# Sprint 1: Motor de Cálculo Financiero
-# No requiere dependencias externas — 100% stdlib Python 3.10+
-# numpy-financial NO es necesario (PMT implementado manualmente)
+# MejorAhora SAS — sprint_1 dependencies
+# Python 3.10+
+# Actualizado 2026-05-07 (B2-light): lista refleja imports reales del pipeline.
 
-# Solo para desarrollo/testing:
-pytest>=7.0
-pytest-cov>=4.0
+# === Runtime (requerido para correr el pipeline en produccion) ===
+pdfplumber>=0.10                  # extract_davivienda_pdf.py
+openpyxl>=3.1                     # excel_populator.py, validar_excel_generado.py (M2)
+gspread>=6.0                      # sheets_loader.py, listar_pendientes_hoy.py
+google-auth>=2.20                 # credenciales Service Account
+google-auth-oauthlib>=1.0         # drive_oauth_setup.py (OAuth user flow)
+google-api-python-client>=2.100   # drive_client.py, oauth_drive.py
+google-cloud-aiplatform>=1.40     # vision_extractor.py (Vertex AI Gemini)
+
+# === Testing ===
+pytest>=7.0                       # sprint_1/tests/ (B2-light, 2026-05-07)
+pytest-cov>=4.0                   # cobertura cuando se monte CI

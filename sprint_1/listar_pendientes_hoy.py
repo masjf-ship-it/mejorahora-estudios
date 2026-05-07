@@ -189,6 +189,22 @@ def cargar_registros(sh):
     return ws.get_all_values()
 
 
+def dedup_por_credito(pendientes: list, creditos_presentes: set) -> list:
+    """Filtra pendientes excluyendo los cuyo N° credito ya esta en STAGING.
+
+    Funcion pura para garantizar idempotencia: re-ejecutar listar_pendientes
+    nunca debe duplicar filas con el mismo N° credito. Ver test_fase2.py TEST P.
+
+    Args:
+        pendientes: lista de dicts con clave "credito".
+        creditos_presentes: set de strings (N° credito ya presentes en STAGING).
+
+    Returns:
+        Lista filtrada de pendientes; solo los nuevos.
+    """
+    return [p for p in pendientes if str(p.get("credito", "")).strip() not in creditos_presentes]
+
+
 def publicar_en_staging(sh, pendientes: list):
     """Appendea pendientes en STAGING respetando el esquema existente.
 
@@ -250,7 +266,7 @@ def publicar_en_staging(sh, pendientes: list):
 
     # Dedup: excluir pendientes cuyo N° credito ya este en STAGING
     pendientes_antes = len(pendientes)
-    pendientes = [p for p in pendientes if str(p["credito"]).strip() not in creditos_presentes]
+    pendientes = dedup_por_credito(pendientes, creditos_presentes)
     n_dedup = pendientes_antes - len(pendientes)
     if n_dedup:
         print(f"[DEDUP] {n_dedup} pendientes ya estan en STAGING por N° credito, skip.")

@@ -30,11 +30,13 @@ cleanup_workspace.bat
 _backups
 _archivo
 _logs
+_planning
 sprint_1
 outputs
 maintenance
 credentials
 automation
+.githooks
 .vscode
 .git
 .gitignore

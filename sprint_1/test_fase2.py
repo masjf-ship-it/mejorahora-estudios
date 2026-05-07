@@ -492,4 +492,52 @@ firma_d = ("", "Empleado", "$5,000,000")
 _assert(firma_d not in firmas, "firma unica de Cliente D NO debe ser generica")
 
 
+# ============================================================
+# TEST P — listar_pendientes_hoy.dedup_por_credito idempotencia (B9, 2026-05-07)
+# ============================================================
+print("\n=== TEST P — dedup_por_credito idempotencia STAGING ===")
+from listar_pendientes_hoy import dedup_por_credito
+
+# Escenario 1: primera corrida — STAGING vacia, todos los pendientes se appendean
+pendientes_run1 = [
+    {"credito": "570000111", "nombre": "A"},
+    {"credito": "570000222", "nombre": "B"},
+    {"credito": "570000333", "nombre": "C"},
+]
+nuevos_run1 = dedup_por_credito(pendientes_run1, set())
+_assert(len(nuevos_run1) == 3, f"primera corrida: deben pasar 3, paso {len(nuevos_run1)}")
+
+# Escenario 2: segunda corrida inmediata — STAGING ya tiene los 3 creditos del run1.
+# La idempotencia exige: dedup retorna lista vacia (cero duplicados appendeados).
+creditos_en_staging = {"570000111", "570000222", "570000333"}
+nuevos_run2 = dedup_por_credito(pendientes_run1, creditos_en_staging)
+_assert(len(nuevos_run2) == 0,
+        f"idempotencia rota: 2da corrida debe dar 0 nuevos, dio {len(nuevos_run2)}")
+
+# Escenario 3: corrida posterior con 1 cliente nuevo + 3 ya existentes
+pendientes_run3 = pendientes_run1 + [{"credito": "570000444", "nombre": "D"}]
+nuevos_run3 = dedup_por_credito(pendientes_run3, creditos_en_staging)
+_assert(len(nuevos_run3) == 1,
+        f"3ra corrida con 1 nuevo: debe dar 1, dio {len(nuevos_run3)}")
+_assert(nuevos_run3[0]["credito"] == "570000444",
+        "el unico que pasa debe ser el credito nuevo")
+
+# Escenario 4: pendientes con whitespace/normalizacion
+pendientes_run4 = [
+    {"credito": "  570000111  ", "nombre": "A trim"},  # ya esta (con espacios)
+    {"credito": "570000555", "nombre": "E"},
+]
+nuevos_run4 = dedup_por_credito(pendientes_run4, creditos_en_staging)
+_assert(len(nuevos_run4) == 1,
+        f"whitespace dedup: debe dar 1, dio {len(nuevos_run4)}")
+_assert(nuevos_run4[0]["credito"] == "570000555",
+        "el que pasa debe ser el credito nuevo (no el con espacios)")
+
+# Escenario 5: defensiva — pendiente sin clave "credito" no debe romper
+pendientes_run5 = [{"nombre": "X sin credito"}, {"credito": "570000666", "nombre": "F"}]
+nuevos_run5 = dedup_por_credito(pendientes_run5, creditos_en_staging)
+_assert(len(nuevos_run5) == 2,
+        f"defensiva: pendiente sin credito + uno nuevo deben pasar (no crash). got {len(nuevos_run5)}")
+
+
 print("\n=== TODOS LOS TESTS PASARON ===")

@@ -212,6 +212,22 @@ Para cambios que implican borrar regla de doc canónico, registrar aquí la regl
 
 ---
 
+- **[2026-05-07] OLA 2 cont. — B9 idempotencia STAGING + B5 métricas + B8 CLAUDE.md pointer:**
+
+  - **B9 — `sprint_1/listar_pendientes_hoy.py`**: extraída función pura `dedup_por_credito(pendientes, creditos_presentes)` desde el flujo `publicar_en_staging()`. Cero cambios de comportamiento (refactor). **`sprint_1/test_fase2.py` TEST P** valida 5 escenarios: primera corrida, idempotencia (re-ejecución sin nuevos), nuevo + ya existentes, whitespace dedup, defensiva sin clave `credito`. Test count: 15 → **16/16 PASS** (A–P). Documentado en MASTER_RULES §2.19, MOM_DAVIVIENDA §8, CLAUDE.md.
+
+  - **B5 — `sprint_1/metricas_pipeline.py`** (nuevo, stdlib only): agrega los `_logs/pipeline_davivienda_*.json` de los últimos N días en métricas que apoyan el criterio ESTADO §3 "5 días sin errores → escalar a Bancolombia". Output texto humano por defecto, JSON con `--json` para dashboards externos. Categoriza fallos en 9 buckets (REVISION_MANUAL, NO_VIABLE_LEY_546, PDF_PROTEGIDO, EXTRACTO_ILEGIBLE/INCOMPLETO, M1_FAIL, DIF_SIMULA_FAIL, BANCO_NO_TRABAJADO, EXCEPTION, OTHER). Calcula racha actual sin fallos. **Smoke run real (30 días, 51 archivos JSON):** 119 clientes procesados, tasa éxito 52.9%, racha 0/5 días sin errores → **criterio NO cumplido**, último día con fallos 2026-05-05 (8 fallos, top: EXCEPTION). Indexado en MASTER_RULES §2.22.
+
+  - **B8 — `CLAUDE.md` reescrito como pointer**: 187 → 135 líneas (~28% más corto). Removidas duplicaciones de reglas que ya viven en MASTER_RULES (Stack snapshot completo, "Numeric tolerance is universal", "Constants live in config_reglas.py only", "STAGING is the only pipeline destination", "Drive folder discipline", "Naming"). Se mantienen únicamente: jerarquía de docs, comandos de uso diario (incluido nuevo bloque B5 métricas + B10 hook activación), output convention, anti-patterns top-5 con pointer a §20, working-with-Jose pointer. **Razón:** prevenir drift estructural (caso C9 de la auditoría — CLAUDE.md decía retención 336, MASTER_RULES decía 168). Ahora los detalles solo viven en docs canónicos.
+
+  - **`MASTER_RULES.md` v2.6 → v2.7**: §2.22 métricas, §2.23 pre-commit hook indexados; cuenta de tests 15→16 (A→P); footer reconciliado.
+
+  **Smoke tests post-Ola 2 cont.:**
+  - `test_fase2.py` → **16/16 PASS** (A-P)
+  - drift checker STEP 8 → 0 issues
+  - pre-commit hook → OK con 7 archivos staged
+  - `metricas_pipeline.py --dias 30` → reporte coherente, racha 0/5 (criterio aún no cumplido)
+
 - **[2026-05-07] OLA 2/B10 — Pre-commit hook (defense-in-depth):**
 
   - **`.githooks/pre-commit`** (versionado, ejecutable mode 100755): hook Python que valida cada commit.
