@@ -212,6 +212,26 @@ Para cambios que implican borrar regla de doc canónico, registrar aquí la regl
 
 ---
 
+- **[2026-05-07] Closing dedup constantes + tests R-DVV-18/06 + estados documentados:**
+
+  Cierra el trabajo de deduplicación. Tres módulos restantes ahora importan de config_reglas:
+
+  - **`proponedor_plazos.py`**: `paso = 100_000` y `paso = 70_000` hardcoded → `DIFF_OPCIONES_DEFAULT` y `DIFF_OPCIONES_PLAZO_CHICO` importados. La condición `< 5.0` años ahora es `< (PLAZO_CHICO_MESES / 12.0)` para coherencia.
+
+  - **`reglas_negocio.py`**: borradas `DIF_SIMULA_TOLERANCIA = 70_000` y `SUMA_CUOTA_TOLERANCIA = 10_000`. **Código muerto** (ningún import las usaba) y la segunda **stale** (valor canónico desde 2026-04-24 es $70k universal MASTER_RULES §8.15, no $10k). Comentario apunta a `config_reglas.TOLERANCIA_*`.
+
+  - **`generar_desde_sheets.py`**: `TOLERANCIA_SUMA_CUOTA = 70_000.0` literal → `from config_reglas import TOLERANCIA_SUMA_CUOTA`.
+
+  **MASTER_RULES §3.9 + §3.10 nuevos**: Estados operativos (Pendiente/Pte. Validar Yenny/Mora válidos; Excel generado/Realizado/Cancelado/Pendiente NOTA consultor saltados) y Amortización (solo `pesos`, `uvr` excluido). Antes los estados solo vivían en código sin documentación canónica.
+
+  **+7 tests pytest** (35 → **42/42 PASS**):
+  - **`test_rdvv18.py`** (5 tests, **NUEVA cobertura crítica**): caso Alexandra Bernal canónico (29 cuotas pendientes — el wrapper filtra opciones extensoras), caso normal con 200m, edge plazo=60m borde Ley 546, manual override también pasa por wrapper, plazo_pagado >= 5 años.
+  - **`test_rdvv06.py`** (2 tests adicionales): override seguros con `+Seguros inferior` (caso Leidy canónico), fallback `seguros_aplicados / 2` cuando no hay `+Seguros inferior` (caso Yeimy Jissel canónico).
+
+  **MASTER_RULES.md v3.1 → v3.2**.
+
+  **Smoke tests post:** `test_fase2.py` 16/16, pytest **42/42** (era 35), drift 0, hook OK con suite pytest integrada.
+
 - **[2026-05-07] Dedup de constantes código + más tests pytest:**
 
   Continuación de la auditoría. Detectado drift estructural: literals constants estaban duplicados en múltiples archivos a pesar de que MASTER_RULES §8.15 dice "centralizadas en config_reglas.py".

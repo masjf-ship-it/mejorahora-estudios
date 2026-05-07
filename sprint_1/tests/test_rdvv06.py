@@ -96,3 +96,76 @@ def test_rdvv06_no_dispara_cuota_normal():
     assert not any("R-DVV-06" in n for n in notas), (
         f"caso normal NO debe disparar R-DVV-06. notas={notas}"
     )
+
+
+# ---- TEST D migrated — override de seguros con +Seguros inferior -----
+def test_rdvv06_override_seguros_con_seguros_inferior():
+    """Caso Leidy canónico (leasing 600 con duplicación G1):
+    - total_aplicado=$2,690,288 ≈ 2× cuota=$1,343,000 → G1 dispara
+    - seguros_inferior_total=$111,315 disponible
+    - Override: seguro_vida = $111,315; incendio y terremoto = 0
+      (consolidado en vida — MOM R-DVV-06 'override seguros').
+    """
+    pdf = {
+        "credito": "600707600145510-4",
+        "nombre": "LEIDY YESENIA MENESES OBANDO",
+        "cuota_mensual": 1_343_000,
+        "plazo_inicial": 95,
+        "cuotas_pendientes": 64,
+        "tasa_cobrada": 0.105,
+        "frech_cobertura_pag1": 0,
+        "seguro_vida": 222_630,        # APLICADOS duplicados
+        "seguro_incendio": 0,
+        "seguro_terremoto": 0,
+        "total_aplicado": 2_690_288,   # ≈ 2× cuota → G1
+        "abonos_capital": 1_467_222,
+        "intereses_corrientes": 1_031_750,
+        "saldo_capital": 61_743_274,
+        "seguros_inferior_total": 111_315,  # Real del mes (no duplicado)
+    }
+    staging_row = {"nombre": "LEIDY YESENIA MENESES OBANDO", "credito": "600707600145510-4"}
+    datos, notas = construir_datos(pdf, {}, staging_row, reg={})
+
+    # Override: vida = +Seguros inferior, otros en 0
+    assert datos.seguro_vida == 111_315, (
+        f"override seguro_vida esperado $111,315, got ${datos.seguro_vida:,.0f}"
+    )
+    assert datos.seguro_incendio == 0
+    assert datos.seguro_terremoto == 0
+    # Nota CRM mencionando duplicación
+    assert len(notas) >= 1, "debe emitir nota CRM con duplicación detectada"
+    assert any("Duplicacion" in n for n in notas), (
+        f"nota debe mencionar 'Duplicacion'. got: {notas}"
+    )
+
+
+# ---- Override seguros sin +Seguros inferior (fallback /2) -------------
+def test_rdvv06_override_seguros_sin_inferior_usa_mitad():
+    """Cuando R-DVV-06 dispara pero seguros_inferior_total=0:
+    fallback es seguros_aplicados / 2 (caso Yeimy Jissel canónico).
+    """
+    pdf = {
+        "credito": "570040770103677-3",
+        "nombre": "YEIMY JISSEL",
+        "cuota_mensual": 500_000,
+        "plazo_inicial": 240,
+        "cuotas_pendientes": 200,
+        "tasa_cobrada": 0.12,
+        "frech_cobertura_pag1": 0,
+        "seguro_vida": 60_000,         # APLICADOS duplicados (real $30k)
+        "seguro_incendio": 40_000,     # APLICADOS duplicados (real $20k)
+        "seguro_terremoto": 0,
+        "total_aplicado": 1_000_000,   # 2× cuota → G1
+        "abonos_capital": 100_000,
+        "intereses_corrientes": 800_000,
+        "saldo_capital": 50_000_000,
+        "seguros_inferior_total": 0,   # NO disponible — fallback /2
+    }
+    datos, notas = construir_datos(pdf, {}, {"nombre": "YEIMY"}, reg={})
+    # Fallback: vida = (60+40)/2 = 50_000, otros en 0
+    expected_vida = (60_000 + 40_000) / 2
+    assert datos.seguro_vida == expected_vida, (
+        f"fallback vida esperado ${expected_vida:,.0f}, got ${datos.seguro_vida:,.0f}"
+    )
+    assert datos.seguro_incendio == 0
+    assert datos.seguro_terremoto == 0

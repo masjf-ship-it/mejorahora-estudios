@@ -34,6 +34,13 @@ from reglas_negocio import (
     PLAZO_PASO_DEFAULT,
     BANCOS_SIN_INGRESOS_REQUERIDOS,
 )
+# Constantes centralizadas (single source of truth — MASTER_RULES §8.15).
+# Antes hardcoded como literals; deduplicado 2026-05-07.
+from config_reglas import (
+    DIFF_OPCIONES_DEFAULT,
+    DIFF_OPCIONES_PLAZO_CHICO,
+    PLAZO_CHICO_MESES,
+)
 
 
 @dataclass
@@ -448,14 +455,14 @@ def _proponer_por_saltos_100k(
                     target = tb
             else:
                 # Incremental SIEMPRE (Jose 2026-04-17 + retro 2026-04-24):
-                # default $100k entre opciones. Si plazo_pend < 60m (5 anos)
-                # permite bajar a $70k cuando es necesario para que quepan
-                # las 6 opciones en el rango disponible.
-                paso = 100_000
-                if plazo_pend_anos < 5.0:
-                    # Plazo chico: si el target $100k excede el techo viable,
-                    # permitir paso $70k para no perder opciones.
-                    paso = 70_000
+                # default DIFF_OPCIONES_DEFAULT entre opciones. Si plazo_pend
+                # < PLAZO_CHICO_MESES (5 anos = 60m) permite bajar a
+                # DIFF_OPCIONES_PLAZO_CHICO cuando es necesario para que
+                # quepan las 6 opciones en el rango disponible.
+                # Constantes en config_reglas.py (§3d MASTER_RULES).
+                paso = DIFF_OPCIONES_DEFAULT
+                if plazo_pend_anos < (PLAZO_CHICO_MESES / 12.0):
+                    paso = DIFF_OPCIONES_PLAZO_CHICO
                 target = abonos_elegidos[-1] + paso
 
             mejor_ent, mejor_ent_dist = None, float("inf")

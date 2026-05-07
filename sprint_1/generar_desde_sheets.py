@@ -44,10 +44,10 @@ from excel_populator import ExcelPopulator
 
 # ============================================================
 # REGLAS DE AJUSTE POST-CARGA (universales, todos los bancos)
-# Ver ESTADO_PROYECTO.md §9
+# Ver MASTER_RULES.md §8.15 — TOLERANCIA_* centralizadas en config_reglas.py
 # ============================================================
-
-TOLERANCIA_SUMA_CUOTA = 70_000.0  # COP - C12 y D12 deben quedar en este rango
+# 2026-05-07: deduplicado del literal local. Constante canonica en config.
+from config_reglas import TOLERANCIA_SUMA_CUOTA  # noqa: F401
 
 
 def _capital_intereses_simulador(tasa_ea: float, plazo_pend_meses: int,

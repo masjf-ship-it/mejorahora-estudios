@@ -72,9 +72,11 @@ HONORARIOS_PORCENTAJE = 0.06      # 6% del ahorro si supera umbral
 # ============================================================
 # VALIDACIONES
 # ============================================================
-
-DIF_SIMULA_TOLERANCIA = 70_000    # +/- 70k para considerar DIF.SIMULA OK
-SUMA_CUOTA_TOLERANCIA = 10_000    # +/- 10k para considerar SUMA CUOTA OK
+# 2026-05-07: removidas DIF_SIMULA_TOLERANCIA y SUMA_CUOTA_TOLERANCIA
+# (eran codigo muerto, ningun import las usaba). Ademas SUMA_CUOTA_TOLERANCIA
+# estaba stale en $10k cuando el valor canonico desde 2026-04-24 es $70k
+# universal (MASTER_RULES §8.15). Para tolerancias usar:
+#   from config_reglas import TOLERANCIA_SUMA_CUOTA, TOLERANCIA_DIF_SIMULA
 
 # Umbral para detectar MORA: si cuota_real / PMT_teorico supera este ratio,
 # probablemente el cliente esta pagando cuota + mora

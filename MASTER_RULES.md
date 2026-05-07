@@ -1,7 +1,7 @@
 # MASTER_RULES — MejorAhora SAS · Reglas Generales del Proyecto
 
-**Versión:** 3.1
-**Última revisión:** 2026-05-07 (Dedup constantes código: PREFIJOS/SHEET_ID/DRIVE_FOLDER/TOLERANCIA_DIF_SIMULA importan de config_reglas — eran literals duplicados en 3-5 archivos. +17 tests pytest: R-DVV-07 proyección 6ta cuota, R-DVV-06 G2 false positive, R-DVV-12 HubSpot genéricos. Total pytest 18→35.)
+**Versión:** 3.2
+**Última revisión:** 2026-05-07 (Closing dedup: proponedor_plazos/reglas_negocio/generar_desde_sheets ahora importan TOLERANCIA_*/DIFF_OPCIONES_* de config_reglas. Constantes muertas removidas. §3.9/§3.10 Estados+Amortización documentados. +7 tests pytest: R-DVV-18 guardia plazo, R-DVV-06 override seguros. Total pytest 35→42.)
 **Mantenido por:** Ciclo mantenimiento 12h + actualizaciones puntuales (ver §19)
 
 > **ESTE ES EL ARCHIVO MAESTRO GENERAL DEL PROYECTO.**
@@ -89,6 +89,23 @@ Prioridad automatización: `Cloud Routines` > `Scheduled Tasks Cowork` > `Custom
 - **3.6** REVISION NO EXISTE como pestaña. Es filter view de REGISTROS.
 - **3.7** Append por nombre de columna, nunca `clear()` ni por índice posicional.
 - **3.8 Columna L = "Nota PARA CRM"**: pipeline escribe automáticamente proyecciones/excepciones para el consultor.
+
+- **3.9 Estados operativos** (columna ESTADO en REGISTROS y STAGING):
+
+| Estado | Filtro REGISTROS→STAGING | Pipeline STAGING |
+|---|---|---|
+| `Pendiente` | Incluye | Procesa |
+| `Pte. Validar Yenny` | Incluye | Procesa |
+| `Mora` | Incluye | Procesa |
+| `Pendiente NOTA consultor` | Excluye (estudio hecho, solo falta nota Yenny) | N/A |
+| `Realizado` | Excluye | N/A |
+| `Cancelado` | Excluye | N/A |
+| `Excel generado` | N/A | Saltar (re-procesar solo con `--force`) |
+| `procesado` / `completado` | N/A | Saltar (variantes históricas) |
+
+Constantes en código: `listar_pendientes_hoy.py::ESTADOS_VALIDOS` (entrada) vs `config_reglas.py::ESTADOS_SKIP_DEFAULT` (post-procesamiento). Si Jose introduce un estado nuevo, actualizar **ambas listas** + esta tabla.
+
+- **3.10 Amortización** (columna V): solo `pesos` se procesa. `uvr` y vacío se filtran (MASTER_RULES §1.2 — UVR NO se procesa). Constantes: `listar_pendientes_hoy.py::AMORTIZACION_VALIDA` y `AMORTIZACION_EXCLUIDA`.
 
 ---
 
@@ -496,5 +513,5 @@ Instrucción:
 
 ---
 
-**FIN MASTER_RULES v3.1**
+**FIN MASTER_RULES v3.2**
 **Próxima revisión:** cuando se sume otro banco o cambie política transversal.
