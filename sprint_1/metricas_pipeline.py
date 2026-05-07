@@ -48,6 +48,14 @@ CATEGORIAS_FALLO = [
     ("M1_FAIL", ["M1-FAIL", "m1_fail", "[M1-validar]"]),
     ("DIF_SIMULA_FAIL", ["DIF.SIMULA", "DIF_SIMULA"]),
     ("BANCO_NO_TRABAJADO", ["BANCO_NO_TRABAJADO", "skip_leasing"]),
+    ("SIN_EXTRACTO", ["sin_extracto_drive"]),  # PDF no encontrado en Drive §4.1
+    # Categorias de exception accionables (post-fix 2026-05-07):
+    ("EXCEL_LOCKED", ["EXCEL_LOCKED"]),  # Excel previo abierto en Office
+    ("OAUTH_FATAL", ["FATAL: OAuth", "FATAL: oauth"]),  # OAuth refresh token revocado
+    ("DRIVE_403", ["HttpError 403", "storageQuota"]),  # SA storage quota
+    ("DRIVE_404", ["HttpError 404"]),  # folder/file no encontrado
+    ("WIN_FILE_LOCKED", ["WinError 32"]),  # tmp PDF locked por otro proceso
+    # Bucket generico para exceptions sin categoria especifica
     ("EXCEPTION", ["exception:", "Exception"]),
     ("OTHER", []),  # bucket por defecto
 ]
@@ -88,6 +96,10 @@ def categorizar_detalle(detalle: str) -> str:
     if not detalle:
         return "OTHER"
     d_low = detalle.lower()
+    # Casos compuestos primero (mas especificos que un solo string match):
+    # PermissionError sobre archivo .xlsx = Excel previo abierto en Office.
+    if "permission denied" in d_low and ".xlsx" in d_low:
+        return "EXCEL_LOCKED"
     for nombre, patrones in CATEGORIAS_FALLO:
         if nombre == "OTHER":
             continue

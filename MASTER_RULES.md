@@ -1,7 +1,7 @@
 # MASTER_RULES — MejorAhora SAS · Reglas Generales del Proyecto
 
-**Versión:** 2.7
-**Última revisión:** 2026-05-07 (B5 métricas semanales §2.22, B8 CLAUDE.md pointer, B9 dedup_por_credito + TEST P, test count 15→16, §2.23 pre-commit hook indexed)
+**Versión:** 2.8
+**Última revisión:** 2026-05-07 (FIX-EXCEPTION-22: OAuth obligatorio elimina 14 DRIVE_403, EXCEL_LOCKED detectado en pipeline, smoke_test_prerun como PASO 0 en run_pipeline.bat, métricas con 5 categorías nuevas — DRIVE_403/DRIVE_404/EXCEL_LOCKED/SIN_EXTRACTO/WIN_FILE_LOCKED/OAUTH_FATAL)
 **Mantenido por:** Ciclo mantenimiento 60min + actualizaciones puntuales (ver §19)
 
 > **ESTE ES EL ARCHIVO MAESTRO GENERAL DEL PROYECTO.**
@@ -59,6 +59,7 @@
 | 2.21 | Regen históricos | `sprint_1/generar_desde_sheets.py` — NO para pendientes nuevos |
 | 2.22 | Métricas semanales | `sprint_1/metricas_pipeline.py` — agrega `_logs/pipeline_davivienda_*.json` para validar criterio "5 días sin errores" (B5, 2026-05-07) |
 | 2.23 | Pre-commit hook | `.githooks/pre-commit` + instalador `maintenance/install_hooks.cmd` (B10, §17.12) |
+| 2.24 | Smoke test pre-pipeline | `sprint_1/smoke_test_prerun.py` — PASO 0 en `run_pipeline.bat`, valida creds/OAuth/hash/deps antes de procesar (2026-05-07, fix de 22 EXCEPTION históricas) |
 
 Prioridad automatización: `Cloud Routines` > `Scheduled Tasks Cowork` > `Custom Skills` > `Scripts Python/JS` > manual.
 
@@ -492,5 +493,5 @@ Instrucción:
 
 ---
 
-**FIN MASTER_RULES v2.7**
+**FIN MASTER_RULES v2.8**
 **Próxima revisión:** cuando se sume otro banco o cambie política transversal.

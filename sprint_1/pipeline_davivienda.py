@@ -1057,7 +1057,20 @@ def procesar_cliente(cfg, gc, drive, hs, ws_staging, idx, row: dict, dry_run: bo
 
         print("  [excel] generando...")
         populator = ExcelPopulator(cfg["template"])
-        output = populator.crear_estudio(datos, cfg["salida"])
+        try:
+            output = populator.crear_estudio(datos, cfg["salida"])
+        except PermissionError as e:
+            # Excel previo abierto en Office bloquea sobreescritura.
+            # Mejor abortar con mensaje accionable que generar Excel con naming alternativo
+            # (rompe MASTER_RULES §12.1 + §17.1 una versión por cliente).
+            archivo = getattr(e, "filename", None) or str(e)
+            msg = (f"EXCEL_LOCKED: Excel previo abierto en Office: {archivo}. "
+                   f"Cerrar el archivo y re-correr "
+                   f"`py pipeline_davivienda.py --nombre \"{datos.nombre[:30]}\" --force`.")
+            print(f"  [excel] BLOQUEO: {msg}")
+            resultado["ok"] = False
+            resultado["detalle"] = msg[:200]
+            return resultado
         ocultar_hoja_bd(output)
         print(f"    {output}")
 
@@ -1126,13 +1139,24 @@ def main():
     gc, drive = drive_client.get_clients()
     hs = HubSpotClient.from_config()
 
+    # Upload a Drive §4.2 requiere OAuth user (SA cae con 403 storageQuotaExceeded
+    # en Gmail personal — MASTER_RULES §4.5 / §16.6). Si OAuth falla, abortar con
+    # mensaje accionable en lugar de generar una EXCEPTION por cliente al hacer
+    # fallback al SA. Bug post-mortem 2026-05-07: 14 EXCEPTION HTTP 403 históricas.
     drive_upload = None
-    if _HAS_OAUTH:
-        try:
-            drive_upload = get_oauth_drive()
-            print("[pipeline_davivienda] OAuth user drive activo (uploads §4.2 = humano)")
-        except Exception as e:
-            print(f"[pipeline_davivienda] OAuth no disponible ({e}); usando SA (puede fallar en upload)")
+    if not _HAS_OAUTH:
+        print("[pipeline_davivienda] FATAL: oauth_drive no disponible. Instalar/restaurar "
+              "credentials/oauth_token.json. Ver MOM_DAVIVIENDA §7 troubleshooting.")
+        return 3
+    try:
+        drive_upload = get_oauth_drive()
+        print("[pipeline_davivienda] OAuth user drive activo (uploads §4.2 = humano)")
+    except Exception as e:
+        print(f"[pipeline_davivienda] FATAL: OAuth no disponible ({e}).")
+        print("[pipeline_davivienda] El SA NO puede subir a §4.2 (storageQuotaExceeded en")
+        print("[pipeline_davivienda] Gmail personal). Ejecutar `py drive_oauth_setup.py` para")
+        print("[pipeline_davivienda] re-autenticar antes de continuar (MASTER_RULES §16.6).")
+        return 3
 
     ws, header, body, idx = _abrir_staging(gc)
     pendientes = _filtrar_pendientes_davivienda(

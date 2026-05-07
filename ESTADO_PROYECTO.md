@@ -8,7 +8,7 @@
 ## 0. Reglas vigentes
 
 > **REGLAS Y REFERENCIA:** este archivo NO contiene reglas. Solo estado.
-> - Reglas generales: `MASTER_RULES.md` (v2.7)
+> - Reglas generales: `MASTER_RULES.md` (v2.8)
 > - Reglas Davivienda: `MOM_DAVIVIENDA.md` (v1.5)
 > - Constantes código: `sprint_1/config_reglas.py`
 > - Cheatsheet bancos: `MANUAL_EXTRACTO_BANCOS.md`

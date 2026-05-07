@@ -294,7 +294,10 @@ Pago Mínimo Cliente        $ZZZ,ZZZ   ← Lo que paga el cliente
 | HubSpot data genérica | Fix R-DVV-12 activo | Verificar log `[HUBSPOT-GENERICO]` |
 | Excel orden quebrado | Padding del populator + plazos<6 del proponedor | Caso edge, M2 lo marca |
 | `invalid_grant: Token has been expired or revoked` | OAuth refresh_token revocado por Google | Correr `py drive_oauth_setup.py` → re-autenticar en navegador con reducciondecreditos2@gmail.com. Diagnóstico previo: `py diag_oauth.py > diag_oauth.txt 2>&1` |
-| `storageQuotaExceeded 403` en upload | SA sin cuota de almacenamiento (Gmail personal) | Verificar que OAuth esté activo. Si log dice "OAuth no disponible" → ver fila anterior |
+| `FATAL: OAuth no disponible` (exit 3 nuevo, 2026-05-07) | Pipeline detectó OAuth roto al inicio y abortó SIN procesar (evita 14 EXCEPTIONS por cliente) | Correr `py drive_oauth_setup.py` → reintentar pipeline |
+| `storageQuotaExceeded 403` en upload (histórico) | SA sin cuota — pre-fix OAuth obligatorio | Ya no debería pasar post-2026-05-07. Si reaparece, OAuth se cayó tras `get_oauth_drive()` (improbable). Ver diag_oauth.txt |
+| `EXCEL_LOCKED` en detalle (exit 0 pero `ok=false`) | Excel previo abierto en Office (Microsoft Excel.exe) bloquea sobreescritura | Cerrar el archivo en Excel y re-correr `py pipeline_davivienda.py --nombre "X" --force` |
+| `[smoke_test] FAIL` en PASO 0 (exit 4 nuevo) | Pre-condition rota: cred ausente, hash PESOS, config.ini, etc. | Leer `_logs/scheduled_YYYYMMDD.txt` PASO 0 — smoke_test reporta exactamente qué falla |
 | Cliente no capturado por listar | Campo BANCO en REGISTROS no dice exactamente "davivienda" | Verificar columna BANCO en REGISTROS para esa fila. Corregir o agregar manualmente a STAGING |
 
 ---

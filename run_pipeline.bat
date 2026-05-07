@@ -26,6 +26,24 @@ echo ==================================================== >> "%LOG%"
 cd /d "%BASE%\sprint_1"
 
 REM ---------------------------------------------------------
+REM PASO 0: Smoke test pre-pipeline (B5 retro 2026-05-07)
+REM   Valida creds, OAuth, hash PESOS, deps. Si falla, aborta
+REM   ANTES de procesar (evita 14 EXCEPTIONS por cliente como
+REM   pasaba pre-fix OAuth).
+REM ---------------------------------------------------------
+echo [%date% %time%] PASO 0: smoke_test_prerun --skip-tests >> "%LOG%"
+py smoke_test_prerun.py --skip-tests >> "%LOG%" 2>&1
+set RC0=%ERRORLEVEL%
+echo [%date% %time%] PASO 0 exit=%RC0% >> "%LOG%"
+if not "%RC0%"=="0" (
+    echo [%date% %time%] ABORT: smoke_test fallo, no se ejecutan PASO 1 ni 2 >> "%LOG%"
+    endlocal
+    exit /b 4
+)
+
+echo. >> "%LOG%"
+
+REM ---------------------------------------------------------
 REM PASO 1: Publicar pendientes de REGISTROS -> STAGING
 REM         (con dedup: no duplica si ya estan en STAGING)
 REM ---------------------------------------------------------
@@ -45,7 +63,7 @@ py pipeline_davivienda.py >> "%LOG%" 2>&1
 set RC=%ERRORLEVEL%
 
 echo. >> "%LOG%"
-echo [%date% %time%] FIN pipeline PASO1=%RC1% PASO2=%RC% >> "%LOG%"
+echo [%date% %time%] FIN pipeline PASO0=%RC0% PASO1=%RC1% PASO2=%RC% >> "%LOG%"
 
 endlocal
 exit /b %RC%

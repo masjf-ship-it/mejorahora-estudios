@@ -212,6 +212,46 @@ Para cambios que implican borrar regla de doc canónico, registrar aquí la regl
 
 ---
 
+- **[2026-05-07] FIX-EXCEPTION-22 — Bugs reproducibles del pipeline detectados via métricas B5:**
+
+  Las métricas semanales (`metricas_pipeline.py`) revelaron **22 EXCEPTION históricas** en los últimos 30 días. Análisis post-mortem identificó 4 categorías y 2 bugs reproducibles fixables:
+
+  - **Bug A — `pipeline_davivienda.py::main()`**: cuando OAuth falla (`get_oauth_drive()` lanza), el código caía silenciosamente al SA y luego cada cliente generaba un `HttpError 403 storageQuotaExceeded` ruidoso. **14 EXCEPTION históricas** atribuibles. **Fix:** OAuth ahora es **obligatorio** — si falla, el pipeline aborta con `exit code 3` y mensaje accionable referenciando MASTER_RULES §16.6 (`drive_oauth_setup.py`). **Regla vieja:** `print("OAuth no disponible; usando SA (puede fallar en upload)")` y continuaba. **Razón:** generar 1 EXCEPTION por cliente ofusca la causa raíz; mejor abortar 1 vez con mensaje claro.
+
+  - **Bug B — `pipeline_davivienda.py::procesar_cliente()`**: cuando el Excel previo del cliente está abierto en Microsoft Excel.exe, `populator.crear_estudio()` lanzaba `PermissionError 13` y la excepción se propagaba como un EXCEPTION genérico. **3 EXCEPTION históricas** (todas JORGE LUIS VELASCO SALAZAR). **Fix:** try/except específico que retorna `ok=false` con `detalle="EXCEL_LOCKED: ..."` y mensaje accionable (cerrar el Excel y re-correr con `--force`). NO genera Excel con sufijo alternativo (rompería §12.1 naming canónico + §17.1 una versión por cliente).
+
+  - **Bug C — Pipeline no validaba precondiciones antes de procesar.** Si OAuth está revocado, config.ini ausente, hash PESOS corrupto o deps faltantes, el pipeline procesaba 12 clientes y todos fallaban. **Fix:** `sprint_1/smoke_test_prerun.py` (nuevo) — chequeo fail-fast de imports críticos, credenciales SA + OAuth, config HubSpot, hash PESOS, golden suite (opcional con `--skip-tests`). Integrado como **PASO 0** en `run_pipeline.bat` (exit code 4 si falla → no se ejecutan PASO 1 ni PASO 2).
+
+  - **`metricas_pipeline.py` enriquecido**: 5 categorías nuevas para discriminar exceptions accionables vs históricas:
+    - `EXCEL_LOCKED` (Excel abierto)
+    - `OAUTH_FATAL` (OAuth caído al inicio)
+    - `DRIVE_403` (SA storageQuota — ya no debería ocurrir post-fix A)
+    - `DRIVE_404` (folder/file no encontrado)
+    - `WIN_FILE_LOCKED` (PDF tmp locked, histórico)
+    - `SIN_EXTRACTO` (PDF no en Drive §4.1)
+
+    También: matching compuesto `Permission denied + .xlsx` mapea a EXCEL_LOCKED (catch retroactivo de logs históricos).
+
+  - **`MOM_DAVIVIENDA.md §7 troubleshooting`**: 4 filas nuevas para los nuevos códigos de salida y categorías.
+
+  - **`MASTER_RULES.md` v2.7 → v2.8**: §2.24 indexa el smoke test.
+
+  **Categorías post-fix sobre la misma ventana de 30 días (re-categorización):**
+  ```
+  DRIVE_403         14   (eliminado prospectivamente — Fix A)
+  M1_FAIL           11   (revisiones manuales legítimas — no es bug)
+  BANCO_NO_TRABAJADO 7   (leasings antiguos, R-DVV-09 ya los procesa)
+  DIF_SIMULA_FAIL    7   (revisiones manuales legítimas R-DVV-11)
+  WIN_FILE_LOCKED    3   (histórico, sin reaparición)
+  EXTRACTO_ILEGIBLE  3   (legítimo — fallback Vision falla)
+  EXCEL_LOCKED       3   (eliminado prospectivamente — Fix B)
+  SIN_EXTRACTO       3   (legítimo — PDF no en §4.1)
+  DRIVE_404          2   (histórico, folder ID corregido)
+  PDF_PROTEGIDO      2   (legítimo — sin CC candidatas)
+  EXTRACTO_INCOMPLETO 1  (legítimo)
+  ```
+  **Reducción esperada de fallos no-legítimos en próxima ventana:** 17/56 (~30%). Tasa de éxito proyectada post-fix: ~67% (vs 52.9% actual). Resto son revisiones manuales legítimas que requieren acción humana (M1_FAIL, DIF_SIMULA_FAIL, EXTRACTO_*) o exógenas (PDF_PROTEGIDO).
+
 - **[2026-05-07] OLA 2 cont. — B9 idempotencia STAGING + B5 métricas + B8 CLAUDE.md pointer:**
 
   - **B9 — `sprint_1/listar_pendientes_hoy.py`**: extraída función pura `dedup_por_credito(pendientes, creditos_presentes)` desde el flujo `publicar_en_staging()`. Cero cambios de comportamiento (refactor). **`sprint_1/test_fase2.py` TEST P** valida 5 escenarios: primera corrida, idempotencia (re-ejecución sin nuevos), nuevo + ya existentes, whitespace dedup, defensiva sin clave `credito`. Test count: 15 → **16/16 PASS** (A–P). Documentado en MASTER_RULES §2.19, MOM_DAVIVIENDA §8, CLAUDE.md.
