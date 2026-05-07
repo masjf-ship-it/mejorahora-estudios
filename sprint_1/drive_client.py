@@ -36,10 +36,13 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent
 CREDS_PATH = PROJECT_ROOT / "credentials" / "sheets_sa.json"
 
-# Folders canonicos — NO modificar sin actualizar MASTER_RULES §4
-DRIVE_FOLDER_EXTRACTOS_RO = "17hN5TDiQ3Ozop-xT6g4OYAyQrZkZT0os"
-DRIVE_FOLDER_ANALISTAS_RW = "1UVsQtyzQHEpfRlcjUrq8gBsXgEqABoym"
-SHEET_ID_BD = "1_9FUAo8cSrLDWAkJlNoy29Cmyh9ojXwnW6zbvhGsESA"
+# Folders y Sheet canonicos — fuente unica config_reglas.py (MASTER_RULES §4 + §3.1).
+# 2026-05-07: deduplicado de literals locales que estaban tambien aqui.
+from config_reglas import (  # noqa: E402
+    DRIVE_FOLDER_EXTRACTOS_RO,
+    DRIVE_FOLDER_ANALISTAS_RW,
+    SHEET_BD_ID as SHEET_ID_BD,
+)
 
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",

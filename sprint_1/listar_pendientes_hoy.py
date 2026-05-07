@@ -29,7 +29,9 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 ROOT_DIR = SCRIPT_DIR.parent
 
-SHEET_ID = "1_9FUAo8cSrLDWAkJlNoy29Cmyh9ojXwnW6zbvhGsESA"
+# Sheet ID canonico — fuente unica config_reglas.py (MASTER_RULES §3.1).
+# 2026-05-07: deduplicado del literal local.
+from config_reglas import SHEET_BD_ID as SHEET_ID  # noqa: E402
 WORKSHEET_SRC = "REGISTROS"          # fuente de verdad (solo lectura)
 WORKSHEET_DST = "STAGING"            # destino operativo oficial (propuestas del pipeline)
 CREDS = ROOT_DIR / "credentials" / "sheets_sa.json"

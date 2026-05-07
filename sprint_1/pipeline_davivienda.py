@@ -85,11 +85,11 @@ except Exception:
 # ============================================================
 
 BANCO = "DAVIVIENDA"
-# Prefijos validos por tipo. Tuplas: extender es agregar el nuevo prefijo aqui.
+# Prefijos validos por tipo. Fuente unica: config_reglas.py (R-DVV-08).
 # 2026-04-23 (Jose): agregado 571 como hipotecario tras caso Karen Tatiana Capera
 # (credito 571616690012705-4 verificado como hipotecario normal Davivienda).
-PREFIJOS_HIPOTECARIO = ("570", "571")
-PREFIJOS_LEASING = ("600",)
+# 2026-05-07: deduplicado — antes estos literals vivian aqui Y en config_reglas.
+from config_reglas import PREFIJOS_HIPOTECARIO, PREFIJOS_LEASING  # noqa: F401
 
 LOG_DIR = PROJECT_ROOT / "_logs"
 LOG_DIR.mkdir(exist_ok=True)
@@ -970,14 +970,15 @@ def procesar_cliente(cfg, gc, drive, hs, ws_staging, idx, row: dict, dry_run: bo
         # Si excede, marca REVISION_MANUAL aunque SUMA CUOTA esté OK
         # (atrapa casos como Gilma con DIF.SIMULA -$13.9M y SUMA OK).
         try:
+            from config_reglas import TOLERANCIA_DIF_SIMULA
             seg_total = (datos.seguro_vida + datos.seguro_incendio
                          + datos.seguro_terremoto)
             cap_sim, int_sim = _capital_intereses_simulador(
                 datos.tasa_ea, datos.plazo_pendiente, datos.saldo_capital)
             dif_sim_final = datos.cuota_mensual - (cap_sim + int_sim + seg_total)
-            if abs(dif_sim_final) > 70_000:
+            if abs(dif_sim_final) > TOLERANCIA_DIF_SIMULA:
                 msg = (f"DIF.SIMULA fuera tolerancia: ${dif_sim_final:,.0f} "
-                       f"(|{abs(dif_sim_final):,.0f}| > $70,000). Plazo pendiente "
+                       f"(|{abs(dif_sim_final):,.0f}| > ${TOLERANCIA_DIF_SIMULA:,.0f}). Plazo pendiente "
                        f"vs cuota incoherente. REVISION_MANUAL.")
                 print(f"  [DIF.SIMULA-CHECK] FAIL: {msg}")
                 resultado["detalle"] = f"DIF_SIMULA_FUERA_TOL: ${dif_sim_final:,.0f}"

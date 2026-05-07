@@ -1,7 +1,7 @@
 # MASTER_RULES — MejorAhora SAS · Reglas Generales del Proyecto
 
-**Versión:** 3.0
-**Última revisión:** 2026-05-07 (Auditoria R-DVV: drift R-DVV-16 corregido en MOM; R-DVV-13 confirmada como iteración temporal superada por R-DVV-15; README.md raíz creado; pre-commit hook ahora corre pytest si hay .py staged en sprint_1/; §17.12 actualizada)
+**Versión:** 3.1
+**Última revisión:** 2026-05-07 (Dedup constantes código: PREFIJOS/SHEET_ID/DRIVE_FOLDER/TOLERANCIA_DIF_SIMULA importan de config_reglas — eran literals duplicados en 3-5 archivos. +17 tests pytest: R-DVV-07 proyección 6ta cuota, R-DVV-06 G2 false positive, R-DVV-12 HubSpot genéricos. Total pytest 18→35.)
 **Mantenido por:** Ciclo mantenimiento 12h + actualizaciones puntuales (ver §19)
 
 > **ESTE ES EL ARCHIVO MAESTRO GENERAL DEL PROYECTO.**
@@ -496,5 +496,5 @@ Instrucción:
 
 ---
 
-**FIN MASTER_RULES v3.0**
+**FIN MASTER_RULES v3.1**
 **Próxima revisión:** cuando se sume otro banco o cambie política transversal.

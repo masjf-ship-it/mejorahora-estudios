@@ -212,6 +212,32 @@ Para cambios que implican borrar regla de doc canónico, registrar aquí la regl
 
 ---
 
+- **[2026-05-07] Dedup de constantes código + más tests pytest:**
+
+  Continuación de la auditoría. Detectado drift estructural: literals constants estaban duplicados en múltiples archivos a pesar de que MASTER_RULES §8.15 dice "centralizadas en config_reglas.py".
+
+  **Constantes deduplicadas (single source of truth en `config_reglas.py`):**
+  - `PREFIJOS_HIPOTECARIO`, `PREFIJOS_LEASING`: estaban duplicados en `pipeline_davivienda.py:91-92`. Ahora importados.
+  - `SHEET_ID_BD`: duplicado en `drive_client.py:42` y `listar_pendientes_hoy.py:32`. Ahora ambos importan de `config_reglas.SHEET_BD_ID`.
+  - `DRIVE_FOLDER_EXTRACTOS_RO`, `DRIVE_FOLDER_ANALISTAS_RW`: duplicados en `drive_client.py:40-41`. Ahora importados.
+  - `TOLERANCIA_DIF_SIMULA`: hardcoded `70_000` en `pipeline_davivienda.py:978`. Ahora `from config_reglas import TOLERANCIA_DIF_SIMULA`.
+
+  **Por qué importa:** si Jose alguna vez migra a otro Sheet, otro folder, o cambia la tolerancia universal, antes tocaba 3-5 archivos con riesgo de olvidar uno. Ahora 1 sola línea en config_reglas.py.
+
+  **Pendientes de futuro refactor (no críticos):**
+  - `proponedor_plazos.py:454,458` tiene `paso = 100_000` y `paso = 70_000` hardcoded — son `DIFF_OPCIONES_DEFAULT` y `DIFF_OPCIONES_PLAZO_CHICO` en config. No tocados aquí para no inflar diff; quedan como ítem de sprint futuro.
+  - `reglas_negocio.py:76` tiene `DIF_SIMULA_TOLERANCIA = 70_000` propio. Es módulo legacy invocado solo por `proponedor_plazos.py`. Mismo deferral.
+  - `generar_desde_sheets.py:50` `TOLERANCIA_SUMA_CUOTA = 70_000`. Mismo.
+
+  **+17 tests pytest** (18 → **35/35 PASS**):
+  - **`sprint_1/tests/test_rdvv07.py`** (9 tests): proyección 6ta cuota Davivienda — caso canónico Julieth (4 cuotas faltantes), DaviBank, edge `cuotas_pagadas=5` borde, edge `=6` umbral exacto, parametrizado contra 4 bancos no-Davivienda.
+  - **`sprint_1/tests/test_rdvv06.py`** (3 tests): G2 false-positive con `seguro_vida=0` (caso Karen Tatiana fix R-DVV-10), G1 dispara con `total_aplicado ≈ 2× cuota`, control caso normal Fernando NO dispara.
+  - **`sprint_1/tests/test_hubspot_genericos.py`** (5 tests): R-DVV-12 detección firmas repetidas — umbral 3, umbral configurable, múltiples firmas simultáneas, sin matches.
+
+  **MASTER_RULES.md v3.0 → v3.1**: header + footer.
+
+  **Smoke tests post:** `test_fase2.py` 16/16, pytest 35/35, drift 0, hook OK con suite pytest integrada.
+
 - **[2026-05-07] Auditoría R-DVV consistency + README + hook pytest + plan Cloud Routines:**
 
   Continuación de la auditoría general. Cuatro hallazgos/mejoras independientes:
