@@ -212,6 +212,27 @@ Para cambios que implican borrar regla de doc canónico, registrar aquí la regl
 
 ---
 
+- **[2026-05-07] Auditoría R-DVV consistency + README + hook pytest + plan Cloud Routines:**
+
+  Continuación de la auditoría general. Cuatro hallazgos/mejoras independientes:
+
+  - **R-DVV consistency** (drift detectado en docs):
+    - **R-DVV-16** (STAGING NO es fuente de datos financieros) estaba en código (`pipeline_davivienda.py:623`) y CHANGELOG (entrada 2026-04-28) pero **faltaba en MOM_DAVIVIENDA**. Documentada ahora en MOM §2 con causa raíz histórica completa. Drift que viola §19 protocolo de actualización corregido.
+    - **R-DVV-13** (fallback `seguro_vida` por residual matemático) detectada como **iteración temporal del 2026-04-27 superada por R-DVV-15** (fix definitivo del extractor con `\$?` regex el 2026-04-28). El fallback ya no existe en código (correcto: la causa raíz se atacó al extractor). Traza histórica queda en CHANGELOG; no se documenta en MOM porque ya no es regla vigente. Aclarado en este registro para evitar futura confusión.
+    - **MOM_DAVIVIENDA v1.5 → v1.6**: header + footer + nueva sección R-DVV-16.
+
+  - **WIN_FILE_LOCKED verificado: NO es bug latente.** Auditado el manejo de handles PDF en código actual. `extract_davivienda_pdf.py` usa `with pdfplumber.open(...) as pdf` (auto-cierre). `vision_extractor.py:154-156` tiene `try/finally pdf.close()` con comentario explícito "Cierre explicito evita WinError 32 al limpiar tempfile en Windows". Las 3 EXCEPTION históricas del 2026-04-21 ya están blindadas.
+
+  - **`README.md` raíz creado** (no existía — solo había `CLAUDE.md` que sirve a Claude Code, no a humanos nuevos). Quick start, jerarquía de docs, mapa de componentes, comandos comunes, política de actualización. ~120 líneas. Sirve de entrada al proyecto sin duplicar reglas (sigue principio B8).
+
+  - **Pre-commit hook con pytest integrado**: cuando hay `.py` staged en `sprint_1/`, el hook ahora corre `pytest sprint_1/tests/ -q` (timeout 60s). Skip silencioso si pytest no está instalado. MASTER_RULES §17.12 actualizada con la 5ta capa de validación.
+
+  - **`_planning/CLOUD_ROUTINES_MIGRATION.md` creado**: plan paso a paso para migrar el pipeline de Windows Task Scheduler a Anthropic Cloud Routines (Claude Code), aprovechando el plan Max de Jose. Bloqueador: necesita git remoto (Jose va a crear). Constraints técnicos validados con `claude-code-guide` skill: 1h frecuencia mínima, ~15 runs/día Max, VM Linux 4 vCPU, env vars o vault para creds, repo-clone-per-run.
+
+  - **MASTER_RULES.md v2.9 → v3.0** (cambio mayor por R-DVV-16 documentado + README como nuevo entry point). ESTADO §0 actualizado.
+
+  Smoke tests post: `test_fase2.py` 16/16, pytest 18/18, drift 0, hook OK con suite pytest integrada.
+
 - **[2026-05-07] Mantenimiento horario → 12h (workaround Cowork removido):**
 
   **Contexto que dio Jose:** el ciclo horario de mantenimiento era una compensación porque Cowork "olvidaba" cosas entre sesiones — los backups frecuentes y la auditoría de memoria operativa Claude (STEP 7) eran un workaround. En Claude Code la memoria son archivos versionados que no se pierden; Jose pidió simplificar.

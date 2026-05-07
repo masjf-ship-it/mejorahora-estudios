@@ -116,6 +116,28 @@ def main() -> int:
                 file=sys.stderr,
             )
 
+    # 5) Pytest suite (si hay .py staged en sprint_1/)
+    sprint_changed = any(f.replace("\\", "/").startswith("sprint_1/") and f.endswith(".py") for f in files)
+    if sprint_changed and (ROOT / "sprint_1" / "tests").exists():
+        import subprocess as _sp
+        try:
+            result = _sp.run(
+                [sys.executable, "-m", "pytest", "sprint_1/tests/", "-q", "--no-header"],
+                cwd=str(ROOT),
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+            if result.returncode != 0:
+                tail = (result.stdout or "")[-400:] + (result.stderr or "")[-200:]
+                errors.append(f"PYTEST falla: {tail!r}")
+        except FileNotFoundError:
+            print("[pre-commit] WARN: pytest no instalado — saltando suite", file=sys.stderr)
+        except _sp.TimeoutExpired:
+            errors.append("PYTEST timeout (>60s)")
+        except Exception as exc:
+            print(f"[pre-commit] WARN: pytest no ejecutable ({exc})", file=sys.stderr)
+
     if errors:
         print("\n[pre-commit] COMMIT BLOQUEADO:", file=sys.stderr)
         for e in errors:

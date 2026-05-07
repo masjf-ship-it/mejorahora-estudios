@@ -1,5 +1,5 @@
 # MOM_DAVIVIENDA — Master Operating Manual · Banco Davivienda
-**Versión:** 1.5 · 2026-05-05 (R-DVV-18: guardia plazo pendiente + NO_VIABLE_LEY_546)
+**Versión:** 1.6 · 2026-05-07 (R-DVV-16 documentada — drift detectado en auditoría: estaba en código y CHANGELOG pero faltaba en MOM)
 **Específico de Davivienda. Para reglas generales del proyecto: ver `MASTER_RULES.md`.**
 
 > **Precedencia:** banco-específico (este archivo) gana sobre general (MASTER_RULES) en caso de contradicción.
@@ -190,6 +190,13 @@ En STAGING, la columna `Acceso` almacena credenciales bancarias (URL/contraseña
 ### R-DVV-15 — Extracción seguro de vida: formato colombiano de miles (2026-04-28)
 El extracto Davivienda muestra en la misma línea: `"Seguro de Vida   0,02294   22.021"` donde `0,02294` es la tasa mensual y `22.021` es el monto en pesos (formato colombiano: punto = separador de miles → 22,021 pesos). El extractor capturaba el primer número (la tasa), resultando en `seguro_vida = 0.02294`. FIX: función `_extraer_seguro_vida()` detecta si el primer número es tasa (`< 1.0`) y toma el segundo. Función `_peso_col()` convierte formato colombiano correctamente: `22.021` → 22021 (si el último grupo post-punto tiene exactamente 3 dígitos, es separador de miles). **Regla general: nunca confiar en `float("22.021")` para montos colombianos — siempre usar `_peso_col()`.**
 
+### R-DVV-16 — STAGING NO es fuente de datos financieros (2026-04-28)
+**Regla:** `pipeline_davivienda.py::construir_datos()` aplica cascada `_pick(HubSpot, REGISTROS)` para `ingresos`, `abono_efectivo` y `actividad_economica`. **NUNCA** incluir `staging_row` como fuente de estos campos. Para `consultor` sí está permitido leer de STAGING (es dato operativo, no financiero). 
+
+**Causa raíz histórica:** la cascada original era `_pick(hs, reg, staging_row)`. Cuando ni HubSpot ni REGISTROS tenían dato, el valor de STAGING ganaba. STAGING contiene residuos del bug R-DVV-14 (cross-match por `Acceso="N/A"`) o entradas manuales erróneas — usarlo como fuente financiera contamina los Excel. Caso real: Jorge Luis Velasco con `ingresos=$3,531,500` y `abono=$100,000` provenientes de STAGING aunque eran erróneos.
+
+**Validación:** `R-DVV-16` documentado en `pipeline_davivienda.py:623` como comentario en la cascada.
+
 ---
 
 ## 3. Mapa de campos por hoja del extracto
@@ -345,5 +352,5 @@ py sprint_1\test_fase2.py > diag_fase2.txt 2>&1
 
 ---
 
-**FIN MOM_DAVIVIENDA v1.5**
+**FIN MOM_DAVIVIENDA v1.6**
 **Próxima revisión:** cuando aparezca caso nuevo no cubierto por R-DVV-01..18 o cambie política Davivienda.

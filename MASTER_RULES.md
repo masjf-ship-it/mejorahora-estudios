@@ -1,7 +1,7 @@
 # MASTER_RULES — MejorAhora SAS · Reglas Generales del Proyecto
 
-**Versión:** 2.9
-**Última revisión:** 2026-05-07 (Mantenimiento horario→12h: STEP 7 memoria operativa eliminado por workaround Cowork ya no aplica; `maintenance_60min.py`→`maintenance.py`; tareas Windows AM/PM 07:00/19:00; RETENTION_N 168→30; §15, §16.3, §9.3, §17.11 reescritos)
+**Versión:** 3.0
+**Última revisión:** 2026-05-07 (Auditoria R-DVV: drift R-DVV-16 corregido en MOM; R-DVV-13 confirmada como iteración temporal superada por R-DVV-15; README.md raíz creado; pre-commit hook ahora corre pytest si hay .py staged en sprint_1/; §17.12 actualizada)
 **Mantenido por:** Ciclo mantenimiento 12h + actualizaciones puntuales (ver §19)
 
 > **ESTE ES EL ARCHIVO MAESTRO GENERAL DEL PROYECTO.**
@@ -372,6 +372,7 @@ Errores → nota CRM "ALERTA M2", NO bloquea upload.
   2. No aparecen IDs de la lista negra §3.4 (excepto en archivos que la documentan).
   3. Archivos `.py` staged compilan.
   4. STEP 8 drift checker no reporta inconsistencias.
+  5. Pytest suite (`sprint_1/tests/`) pasa, **si** hay `.py` staged en `sprint_1/`. Skip silencioso si pytest no está instalado.
 
   Activación una sola vez por clone: `maintenance\install_hooks.cmd` (configura `core.hooksPath=.githooks`).
   Bypass de emergencia: `git commit --no-verify` — debe registrarse en CHANGELOG con la razón (§23.4).
@@ -495,5 +496,5 @@ Instrucción:
 
 ---
 
-**FIN MASTER_RULES v2.9**
+**FIN MASTER_RULES v3.0**
 **Próxima revisión:** cuando se sume otro banco o cambie política transversal.
