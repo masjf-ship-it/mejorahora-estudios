@@ -212,6 +212,38 @@ Para cambios que implican borrar regla de doc canónico, registrar aquí la regl
 
 ---
 
+- **[2026-05-07] Mantenimiento horario → 12h (workaround Cowork removido):**
+
+  **Contexto que dio Jose:** el ciclo horario de mantenimiento era una compensación porque Cowork "olvidaba" cosas entre sesiones — los backups frecuentes y la auditoría de memoria operativa Claude (STEP 7) eran un workaround. En Claude Code la memoria son archivos versionados que no se pierden; Jose pidió simplificar.
+
+  **Cambios:**
+
+  - **Renombrado `maintenance/maintenance_60min.py` → `maintenance/maintenance.py`**: nombre genérico no atado a la cadencia (que puede cambiar de nuevo). git mv preserva historia.
+
+  - **STEP 7 eliminado completamente** (`find_memory_dir()`, `check_memory_health()`, sección de reporte en `write_anomaly_report`, llaves `mem_*` en summary, llamada en main): ~150 líneas borradas. También removido `maintenance/memory_dir.txt` (artefacto de configuración del finder de directorio de memoria Cowork).
+
+  - **Cadencia HOURLY → DAILY 2× (07:00 + 19:00)** vía dos tareas Windows separadas: `MejorAhora\Mantenimiento AM` y `MejorAhora\Mantenimiento PM`. Una corrida antes de cada pipeline (08:30 / 20:30) cubre el caso de uso real (rotar backups + chequear drift); la cadencia horaria era overhead puro.
+
+  - **`RETENTION_N` 168 → 30 snapshots** (≈15 días a 2 corridas/día). Cobertura efectiva mayor que los 7 días anteriores (168 horarios), con menos archivos en disco.
+
+  - **`install_task.cmd` reescrito**: borra la legacy `MejorAhora\Mantenimiento 60min` si existe, crea las dos nuevas con `schtasks /sc DAILY /st 07:00` y `19:00`. **Jose ejecuta una sola vez** después de mergear: `maintenance\install_task.cmd`.
+
+  - **`run_maintenance.bat`** apunta a `maintenance.py` (no `maintenance_60min.py`).
+
+  - **`.githooks/pre-commit`**: import del drift checker corregido a `maintenance` (no `maintenance_60min`); allowlist de archivos canónicos también.
+
+  **Documentación reescrita:**
+  - `MASTER_RULES.md` v2.8 → **v2.9** (§2.20, §9.3, §15 entero, §16.3, §17.11, footer).
+  - `CLAUDE.md` sección "Maintenance" actualizada con nueva cadencia.
+  - `ESTADO_PROYECTO.md` (referencia al script + criterio "5 días sin errores" cambia mention STEP 7 → STEP 8).
+  - `maintenance/README.md` reescrito completo.
+
+  **Histórico preservado:** referencias a "60min" / "STEP 7" en entradas viejas del CHANGELOG (2026-04-21 a 2026-04-25) NO se tocaron — son timeline histórico, política limpia §17.3 dice traza histórica vive en CHANGELOG.
+
+  **Smoke tests post:**
+  - `python maintenance/maintenance.py --dry-run` → corre limpio (anom_drift=0, sin errores de import).
+  - `test_fase2.py` 16/16, pytest 18/18, drift 0, hook OK.
+
 - **[2026-05-07] OLA 2 cleanup — rotación logs pipeline + más tests pytest:**
 
   - **`maintenance/maintenance_60min.py`**: nueva función `rotate_pipeline_logs()` integrada al ciclo horario. Borra archivos `_logs/pipeline_davivienda_YYYYMMDD_HHMMSS.json` con fecha (parseada del nombre, no `mtime`) anterior a 30 días. Constante `RETENTION_PIPELINE_LOGS_DAYS = 30`. **Razón:** pre-fix se acumulaban sin límite (51 archivos en 30 días para 2026-05-07). MASTER_RULES §15.4 actualizada.

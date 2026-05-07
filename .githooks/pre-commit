@@ -40,7 +40,7 @@ BLACKLIST_ALLOWLIST = {
     "CHANGELOG.md",
     "ESTADO_PROYECTO.md",
     "sprint_1/config_reglas.py",
-    "maintenance/maintenance_60min.py",
+    "maintenance/maintenance.py",
     ".githooks/pre-commit",
 }
 FORBIDDEN_PATHS = (
@@ -105,7 +105,7 @@ def main() -> int:
     if relevant:
         sys.path.insert(0, str(ROOT / "maintenance"))
         try:
-            from maintenance_60min import check_doc_code_drift  # type: ignore
+            from maintenance import check_doc_code_drift  # type: ignore
             drift = check_doc_code_drift()
             for d in drift:
                 errors.append(f"DRIFT (STEP 8): {d}")

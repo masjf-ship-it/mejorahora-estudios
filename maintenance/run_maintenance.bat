@@ -1,12 +1,13 @@
 @echo off
 REM -------------------------------------------------------------------
 REM run_maintenance.bat  —  entry point Windows Task Scheduler
-REM Corre maintenance_60min.py con --apply y redirige salida a _logs/
+REM Corre maintenance.py con --apply y redirige salida a _logs/
+REM Cadencia 2026-05-07: 12h (07:00 y 19:00). Antes era 60min (Cowork).
 REM -------------------------------------------------------------------
 
 setlocal
 set "PROJECT_ROOT=C:\Users\JOSE A\Desktop\ESTUDIOS CLAUDE"
-set "SCRIPT=%PROJECT_ROOT%\maintenance\maintenance_60min.py"
+set "SCRIPT=%PROJECT_ROOT%\maintenance\maintenance.py"
 set "LOGS=%PROJECT_ROOT%\_logs"
 
 if not exist "%LOGS%" mkdir "%LOGS%"
@@ -20,7 +21,7 @@ py "%SCRIPT%" > "%OUT%" 2>&1
 set RC=%ERRORLEVEL%
 
 if %RC% NEQ 0 (
-  echo [%DATE% %TIME%] maintenance_60min FAILED rc=%RC% >> "%LOGS%\mant.log"
+  echo [%DATE% %TIME%] maintenance FAILED rc=%RC% >> "%LOGS%\mant.log"
 )
 
 endlocal & exit /b %RC%

@@ -8,7 +8,7 @@
 ## 0. Reglas vigentes
 
 > **REGLAS Y REFERENCIA:** este archivo NO contiene reglas. Solo estado.
-> - Reglas generales: `MASTER_RULES.md` (v2.8)
+> - Reglas generales: `MASTER_RULES.md` (v2.9)
 > - Reglas Davivienda: `MOM_DAVIVIENDA.md` (v1.5)
 > - Constantes código: `sprint_1/config_reglas.py`
 > - Cheatsheet bancos: `MANUAL_EXTRACTO_BANCOS.md`
@@ -108,7 +108,7 @@ Ver `MOM_DAVIVIENDA.md §6` para tabla completa de casos validados.
 - `sprint_1/test_fase2.py` — 16 tests golden
 - `sprint_1/config_reglas.py` — constantes centralizadas
 - `sprint_1/listar_pendientes_hoy.py` — publicador STAGING
-- `maintenance/maintenance_60min.py` — mantenimiento horario + STEP 7
+- `maintenance/maintenance.py` — mantenimiento 12h (AM/PM) + STEP 8 drift checker
 
 ### Carpetas
 - `_backups/` — snapshots históricos (168 retención = 7 días, FIFO)
@@ -126,7 +126,7 @@ Las decisiones operativas viven en MASTER_RULES.md y MOM_<BANCO>.md. Aquí solo 
 
 - **Banco por banco** (no paralelo). Validar al 100% antes de avanzar.
 - **Davivienda primero** (mayor volumen + mayor cantidad de extractos disponibles).
-- **Cero errores antes de escalar** (16 tests golden + M1 + M2 + STEP 7 antes de procesar volumen).
+- **Cero errores antes de escalar** (16 tests golden + M1 + M2 + STEP 8 drift checker antes de procesar volumen).
 - **Política docs limpia** (MASTER_RULES §17.3): cuando una regla se revoca se BORRA del doc canónico; la traza histórica vive EXCLUSIVAMENTE en `CHANGELOG.md`. No se acumulan marcadores `[REVOCADA]` en MASTER_RULES/MOM.
 - **Cualquier cambio de regla** requiere patrón formal "Actualización de Constitución Operativa" (ver `MASTER_RULES §19`).
 

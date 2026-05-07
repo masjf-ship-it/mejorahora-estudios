@@ -76,14 +76,14 @@ py drive_oauth_setup.py                    # browser flow as reducciondecreditos
 
 OAuth refresh token (`credentials/oauth_token.json`) gets revoked by Google when the project is in "Testing" mode and the token is unused for ~6 months. Service account (`credentials/sheets_sa.json`) cannot upload to Drive folder §4.2 because Gmail personal hits `storageQuotaExceeded` — that's why uploads use OAuth user.
 
-### Maintenance (hourly)
+### Maintenance (every 12h — 07:00 + 19:00)
 
 ```cmd
-python maintenance\maintenance_60min.py --dry-run    # safe preview
-python maintenance\maintenance_60min.py              # apply
+python maintenance\maintenance.py --dry-run    # safe preview
+python maintenance\maintenance.py              # apply
 ```
 
-Runs as `MejorAhora\Mantenimiento 60min` (HOURLY). Steps include backup, drift checker (STEP 8), memory audit (STEP 7). See `maintenance/README.md`.
+Runs as `MejorAhora\Mantenimiento AM` (DAILY 07:00) + `MejorAhora\Mantenimiento PM` (DAILY 19:00). Steps include backup (30 snapshots = ~15 days), diff/anomalies report, root cleanup, drift checker (STEP 8). The earlier hourly cadence + STEP 7 memory audit were a Cowork-era workaround removed on 2026-05-07. See `maintenance/README.md`.
 
 ### Pre-commit hook activation (one-time per clone)
 

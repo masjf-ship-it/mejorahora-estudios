@@ -1,20 +1,31 @@
 # -*- coding: utf-8 -*-
 """
-maintenance_60min.py — Ciclo de mantenimiento horario MejorAhora Estudios.
+maintenance.py — Ciclo de mantenimiento MejorAhora Estudios.
 
-Ejecuta cada 60 min (via Windows Task Scheduler) y al inicio/cierre de sesion.
+Cadencia: cada 12 horas (07:00 y 19:00) via Windows Task Scheduler
+(MejorAhora\\Mantenimiento AM + MejorAhora\\Mantenimiento PM).
 
-Operaciones (ver MASTER_RULES.md §18):
+Historico: este script corria cada 60 min (de ahi su nombre original
+maintenance_60min.py) cuando MejorAhora operaba en Cowork Desktop, donde
+el agente "olvidaba" cosas entre sesiones; backups frecuentes + auditoria
+de memoria operativa (STEP 7) eran un workaround. En Claude Code la
+memoria son archivos versionados (CLAUDE.md + MASTER_RULES.md +
+CHANGELOG.md) y el drift checker (STEP 8) + pre-commit hook validan
+integridad estructural. Cadencia reducida a 12h y STEP 7 eliminado el
+2026-05-07.
+
+Operaciones (MASTER_RULES.md §15):
   1. Backup   — copia lista blanca a _backups/<ts>/
   2. Diff     — verifica consistencia entre docs canonicos
   3. Reporte  — _logs/anomalies_<ts>.txt si hay hallazgos
   4. Limpieza — mueve archivos sueltos en raiz NO whitelisted a _archivo/YYYY-MM/
   5. Log      — append a _logs/mant.log
+  STEP 8 (2026-05-07) — drift checker docs <-> codigo (no autopoda)
 
 Uso:
-  python maintenance_60min.py              # --apply (default)
-  python maintenance_60min.py --dry-run    # reporta sin mover/borrar
-  python maintenance_60min.py --quick      # solo log heartbeat, no backup
+  python maintenance.py                # --apply (default)
+  python maintenance.py --dry-run      # reporta sin mover/borrar
+  python maintenance.py --quick        # solo log heartbeat, no backup
 
 Codigos de salida:
   0 — OK (con o sin anomalias, que quedan en reporte)
@@ -41,9 +52,10 @@ ARCHIVO_DIR = PROJECT_ROOT / "_archivo"
 LOGS_DIR = PROJECT_ROOT / "_logs"
 WHITELIST_PATH = HERE / "whitelist.txt"
 
-# Retencion: 168 snapshots = 7 dias a 1 corrida/hora (MASTER_RULES §17.11).
-# Esta constante es la FUENTE DE VERDAD; cualquier doc que cite otro valor esta stale.
-RETENTION_N = 168
+# Retencion: 30 snapshots = ~15 dias a 2 corridas/dia (07:00, 19:00).
+# MASTER_RULES §17.11 — esta constante es la FUENTE DE VERDAD.
+# Cambio 2026-05-07: 168 (cadencia horaria) -> 30 (cadencia 12h, STEP 7 eliminado).
+RETENTION_N = 30
 
 # Backup — lista de patrones (relativos a PROJECT_ROOT) a snapshotear.
 # Limpieza 2026-05-07: removidos archivos consolidados (SOURCE_OF_TRUTH, PROMPT_DEFINITIVO,
@@ -299,7 +311,7 @@ def write_anomaly_report(findings: dict, ts: str) -> Path | None:
     path = LOGS_DIR / f"anomalies_{ts}.txt"
     lines = [
         f"# Anomalias — {now_iso()}",
-        f"# Generado por maintenance_60min.py",
+        f"# Generado por maintenance.py",
         "",
     ]
     if findings.get("missing"):
@@ -323,176 +335,17 @@ def write_anomaly_report(findings: dict, ts: str) -> Path | None:
             lines.append(f"  - {d}")
         lines.append("  ACCION: alinear el doc o el codigo y registrar en CHANGELOG.")
         lines.append("")
-    mem = findings.get("memory") or {}
-    if mem.get("has_issues"):
-        lines.append("## Memoria operativa del agente (STEP 7, 2026-04-23)")
-        lines.append(f"  - path: {mem.get('path', '(no encontrada)')}")
-        lines.append(f"  - pointers en MEMORY.md: {mem.get('pointers', 0)}")
-        if mem.get("broken"):
-            lines.append("  - POINTERS ROTOS (archivo no existe):")
-            for b in mem["broken"]:
-                lines.append(f"      * {b}")
-        if mem.get("orphans"):
-            lines.append("  - ARCHIVOS HUERFANOS (.md sin pointer en MEMORY.md):")
-            for o in mem["orphans"]:
-                lines.append(f"      * {o}")
-        if mem.get("stale_project"):
-            lines.append("  - PROJECT MEMORIES STALE (>90 dias sin modificar):")
-            for name, fecha in mem["stale_project"]:
-                lines.append(f"      * {name}  (ult. mod {fecha})")
-        if mem.get("changelog_stale"):
-            lines.append(f"  - CHANGELOG.md sin entradas nuevas (ult. mod {mem.get('changelog_last')})")
-        lines.append("  NOTA: reporte solamente. Politica docs limpia (MASTER_RULES §17.3):"
-                     " la traza de cambios va a CHANGELOG.md, no a marcadores [REVOCADA]"
-                     " en docs canonicos. STEP 7 reporta para revisar, no poda automaticamente.")
-        lines.append("")
     path.write_text("\n".join(lines), encoding="utf-8")
     return path
 
 
 # -----------------------------------------------------------------------------
-# Paso 7 — Memoria operativa del agente (2026-04-23)
-# -----------------------------------------------------------------------------
-def find_memory_dir() -> Path | None:
-    """Localiza el directorio de memoria del agente Claude.
-
-    Precedencia:
-      1. env MEJORAHORA_MEMORY_DIR
-      2. archivo `maintenance/memory_dir.txt` (una linea con la ruta)
-      3. busqueda recursiva en %APPDATA%\\Claude\\local-agent-mode-sessions
-    Retorna None si no se encuentra.
-    """
-    # 1) env var override
-    override = os.environ.get("MEJORAHORA_MEMORY_DIR", "").strip()
-    if override:
-        p = Path(override)
-        if (p / "MEMORY.md").exists():
-            return p
-    # 2) archivo config persistente
-    cfg_file = HERE / "memory_dir.txt"
-    if cfg_file.exists():
-        try:
-            raw = cfg_file.read_text(encoding="utf-8-sig")  # -sig tolera BOM
-            # Tomar primera linea no vacia, por si hay comentarios/blank lines
-            for line in raw.splitlines():
-                ruta = line.strip().strip('"').strip("'")
-                if not ruta or ruta.startswith("#"):
-                    continue
-                p = Path(ruta)
-                if (p / "MEMORY.md").exists():
-                    return p
-                break
-        except Exception:
-            pass
-    # 3) busqueda automatica en multiples ubicaciones
-    #    Claude Desktop (MSI) usa APPDATA\Claude
-    #    Claude for Windows Store sandboxa en
-    #      LOCALAPPDATA\Packages\Claude_*\LocalCache\Roaming\Claude
-    candidates = []
-    for env_var in ("APPDATA", "LOCALAPPDATA"):
-        base = os.environ.get(env_var, "")
-        if not base:
-            continue
-        for subdir in ("Claude", "AnthropicClaude", "Anthropic"):
-            p = Path(base) / subdir
-            if p.exists():
-                candidates.append(p)
-    # Windows Store sandbox
-    localapp = os.environ.get("LOCALAPPDATA", "")
-    if localapp:
-        packages = Path(localapp) / "Packages"
-        if packages.exists():
-            for pkg in packages.glob("Claude_*"):
-                candidates.append(pkg)
-    for base_path in candidates:
-        try:
-            for mem_file in base_path.rglob("MEMORY.md"):
-                return mem_file.parent
-        except Exception:
-            continue
-    return None
-
-
-def check_memory_health() -> dict:
-    """Audita la memoria del agente. Solo reporta — no borra nada.
-
-    Respeta feedback_memoria_acumulativa_total.md (nada se borra).
-    """
-    import re as _re
-    out = {
-        "available": False,
-        "path": None,
-        "pointers": 0,
-        "broken": [],
-        "orphans": [],
-        "stale_project": [],
-        "changelog_last": None,
-        "changelog_stale": False,
-        "has_issues": False,
-    }
-    memdir = find_memory_dir()
-    if memdir is None:
-        return out
-    out["available"] = True
-    out["path"] = str(memdir)
-
-    mpath = memdir / "MEMORY.md"
-    try:
-        lines = mpath.read_text(encoding="utf-8").splitlines()
-    except Exception:
-        return out
-
-    # Extraer referencias tipo [Title](file.md)
-    pointer_re = _re.compile(r'\[([^\]]+)\]\(([^)]+\.md)\)')
-    referenced = set()
-    for line in lines:
-        m = pointer_re.search(line)
-        if m:
-            out["pointers"] += 1
-            target = m.group(2).strip()
-            referenced.add(target)
-            target_path = memdir / target
-            if not target_path.exists():
-                out["broken"].append(target)
-
-    # Huerfanos: .md presentes sin pointer
-    reserved = {"MEMORY.md"}
-    for mdfile in memdir.glob("*.md"):
-        if mdfile.name in reserved:
-            continue
-        if mdfile.name not in referenced:
-            out["orphans"].append(mdfile.name)
-
-    # Stale project memories: project_*.md sin modificar >90 dias
-    umbral = dt.datetime.now() - dt.timedelta(days=90)
-    for mdfile in memdir.glob("project_*.md"):
-        try:
-            mtime = dt.datetime.fromtimestamp(mdfile.stat().st_mtime)
-            if mtime < umbral:
-                out["stale_project"].append((mdfile.name, mtime.strftime("%Y-%m-%d")))
-        except Exception:
-            continue
-
-    # CHANGELOG.md: alertar si no hay actividad >7 dias
-    clog = memdir / "CHANGELOG.md"
-    if clog.exists():
-        try:
-            mtime = dt.datetime.fromtimestamp(clog.stat().st_mtime)
-            out["changelog_last"] = mtime.strftime("%Y-%m-%d %H:%M")
-            if mtime < dt.datetime.now() - dt.timedelta(days=7):
-                out["changelog_stale"] = True
-        except Exception:
-            pass
-
-    out["has_issues"] = bool(
-        out["broken"] or out["orphans"] or out["stale_project"] or out["changelog_stale"]
-    )
-    return out
-
-
-# -----------------------------------------------------------------------------
 # Paso 4 — Limpieza raiz
 # -----------------------------------------------------------------------------
+# (definida abajo en clean_root() — antes esta seccion contenia STEP 7
+#  "Memoria operativa del agente" — eliminado 2026-05-07. Ver header docstring.)
+
+
 # -----------------------------------------------------------------------------
 # Paso 8 — Drift checker (2026-05-07)
 # Detecta inconsistencias estructurales entre docs canonicos y codigo:
@@ -625,7 +478,7 @@ def clean_root(patterns: list[str], dry_run: bool) -> list[tuple[Path, Path]]:
 # Main
 # -----------------------------------------------------------------------------
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Mantenimiento 60min MejorAhora")
+    ap = argparse.ArgumentParser(description="Mantenimiento 12h MejorAhora (AM/PM)")
     ap.add_argument("--dry-run", action="store_true", help="No mueve ni borra nada")
     ap.add_argument("--quick", action="store_true", help="Solo heartbeat log")
     ap.add_argument("--no-clean", action="store_true", help="Skip paso 4 limpieza")
@@ -663,23 +516,17 @@ def main() -> int:
     summary["pipeline_logs_rotated"] = rotated_logs
 
     # Paso 2 — Diff
+    # STEP 7 "memoria operativa" eliminado 2026-05-07 (era workaround Cowork).
     findings = {
         "missing": check_required_paths(),
         "hubspot": check_hubspot_token(),
         "forbidden": scan_forbidden_patterns(),
-        "memory": check_memory_health(),  # STEP 7 (2026-04-23)
         "drift": check_doc_code_drift(),  # STEP 8 (2026-05-07)
     }
     summary["anom_missing"] = len(findings["missing"])
     summary["anom_hubspot"] = 1 if findings["hubspot"] else 0
     summary["anom_forbidden"] = len(findings["forbidden"])
     summary["anom_drift"] = len(findings["drift"])
-    mem = findings["memory"]
-    summary["mem_available"] = mem["available"]
-    summary["mem_pointers"] = mem["pointers"]
-    summary["mem_broken"] = len(mem["broken"])
-    summary["mem_orphans"] = len(mem["orphans"])
-    summary["mem_stale"] = len(mem["stale_project"])
 
     # Paso 3 — Reporte
     rpt = write_anomaly_report(findings, ts)
@@ -702,16 +549,14 @@ def main() -> int:
     # Paso 5 — Log summary
     log_line(
         f"CYCLE mode={summary['mode']} backup={summary['backup_copied']}/"
-        f"rotated={summary['backup_rotated']} anom_missing={summary['anom_missing']} "
-        f"anom_hubspot={summary['anom_hubspot']} "
-        f"anom_forbidden={summary['anom_forbidden']} moved={summary['moved']} "
-        f"mem_avail={summary['mem_available']} mem_ptrs={summary['mem_pointers']} "
-        f"mem_broken={summary['mem_broken']} mem_orphans={summary['mem_orphans']} "
-        f"mem_stale={summary['mem_stale']} report={summary['report']}"
+        f"rotated={summary['backup_rotated']} pipeline_logs_rotated={summary['pipeline_logs_rotated']} "
+        f"anom_missing={summary['anom_missing']} anom_hubspot={summary['anom_hubspot']} "
+        f"anom_forbidden={summary['anom_forbidden']} anom_drift={summary['anom_drift']} "
+        f"moved={summary['moved']} report={summary['report']}"
     )
 
     # stdout para humano
-    print(f"== mantenimiento 60min [{mode}] ==")
+    print(f"== mantenimiento 12h [{mode}] ==")
     for k, v in summary.items():
         print(f"  {k}: {v}")
     return 0

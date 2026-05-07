@@ -1,8 +1,8 @@
 # MASTER_RULES — MejorAhora SAS · Reglas Generales del Proyecto
 
-**Versión:** 2.8
-**Última revisión:** 2026-05-07 (FIX-EXCEPTION-22: OAuth obligatorio elimina 14 DRIVE_403, EXCEL_LOCKED detectado en pipeline, smoke_test_prerun como PASO 0 en run_pipeline.bat, métricas con 5 categorías nuevas — DRIVE_403/DRIVE_404/EXCEL_LOCKED/SIN_EXTRACTO/WIN_FILE_LOCKED/OAUTH_FATAL)
-**Mantenido por:** Ciclo mantenimiento 60min + actualizaciones puntuales (ver §19)
+**Versión:** 2.9
+**Última revisión:** 2026-05-07 (Mantenimiento horario→12h: STEP 7 memoria operativa eliminado por workaround Cowork ya no aplica; `maintenance_60min.py`→`maintenance.py`; tareas Windows AM/PM 07:00/19:00; RETENTION_N 168→30; §15, §16.3, §9.3, §17.11 reescritos)
+**Mantenido por:** Ciclo mantenimiento 12h + actualizaciones puntuales (ver §19)
 
 > **ESTE ES EL ARCHIVO MAESTRO GENERAL DEL PROYECTO.**
 > Contiene reglas que aplican a TODOS los bancos.
@@ -55,7 +55,7 @@
 | 2.17 | Validador M1 (post-extracción) | `sprint_1/validar_extraccion_davivienda.py` |
 | 2.18 | Validador M2 (post-Excel) | `sprint_1/validar_excel_generado.py` |
 | 2.19 | Test suite golden | `sprint_1/test_fase2.py` (16 tests A-P) |
-| 2.20 | Mantenimiento 60min | `maintenance/maintenance_60min.py` |
+| 2.20 | Mantenimiento 12h | `maintenance/maintenance.py` (antes `maintenance_60min.py`, cadencia horaria — workaround Cowork) |
 | 2.21 | Regen históricos | `sprint_1/generar_desde_sheets.py` — NO para pendientes nuevos |
 | 2.22 | Métricas semanales | `sprint_1/metricas_pipeline.py` — agrega `_logs/pipeline_davivienda_*.json` para validar criterio "5 días sin errores" (B5, 2026-05-07) |
 | 2.23 | Pre-commit hook | `.githooks/pre-commit` + instalador `maintenance/install_hooks.cmd` (B10, §17.12) |
@@ -242,7 +242,7 @@ Fix: `R-DVV-18` en `proponedor_plazos.py` + pre-check en `pipeline_davivienda.py
 
 ---
 
-## 9. Validadores M1, M2, STEP 7
+## 9. Validadores M1, M2, STEP 8
 
 ### 9.1 — M1 (post-extracción, pre-Excel)
 `validar_extraccion_davivienda.py::validar_datos_cliente(datos)` valida:
@@ -264,10 +264,11 @@ Errores → REVISION_MANUAL, no genera Excel. Warnings → log + sigue.
 - B16:B21 plazos en orden DESCENDENTE
 Errores → nota CRM "ALERTA M2", NO bloquea upload.
 
-### 9.3 — STEP 7 (mantenimiento horario)
-`maintenance/maintenance_60min.py::check_memory_health()`:
-- pointers, broken, orphans, stale (memoria operativa Claude)
-- Solo reporta, NO poda (política nada se borra).
+### 9.3 — STEP 8 (mantenimiento 12h, ex-STEP 7)
+`maintenance/maintenance.py::check_doc_code_drift()`:
+- header vs footer de versión, ESTADO § cita versiones reales, hash PESOS, `RETENTION_N`, refs canónicos rotas.
+- Solo reporta, no poda (política docs limpia §17.3).
+- **STEP 7 anterior** (auditoría memoria operativa Claude) eliminado 2026-05-07: era workaround Cowork (memoria volátil); en Claude Code la memoria son archivos versionados (CLAUDE.md + MASTER_RULES + CHANGELOG) que no requieren auditoría externa.
 
 ---
 
@@ -323,19 +324,20 @@ Errores → nota CRM "ALERTA M2", NO bloquea upload.
 
 ---
 
-## 15. Mantenimiento 60min — protocolo horario
+## 15. Mantenimiento 12h — protocolo
 
-- **15.1** Script: `maintenance/maintenance_60min.py`
-- **15.2** Tarea: `MejorAhora\Mantenimiento 60min` (HOURLY)
+**Histórico:** este ciclo era horario (`maintenance_60min.py`) cuando MejorAhora operaba en Cowork Desktop, donde el agente "olvidaba" cosas entre sesiones — los backups frecuentes y la auditoría de memoria operativa (STEP 7) eran un workaround. En Claude Code la memoria son archivos versionados (CLAUDE.md + MASTER_RULES + CHANGELOG); cadencia reducida a 12h y STEP 7 eliminado el 2026-05-07.
+
+- **15.1** Script: `maintenance/maintenance.py`
+- **15.2** Tareas: `MejorAhora\Mantenimiento AM` (DAILY 07:00) + `MejorAhora\Mantenimiento PM` (DAILY 19:00). Una antes de cada pipeline (08:30 / 20:30).
 - **15.3** Steps por ciclo:
   1. **Backup** — copiar lista blanca a `_backups/<ts>/`
   2. **Diff** — verificar consistencia entre archivos canónicos
   3. **Reporte** — `_logs/anomalies_<ts>.txt` si hay hallazgos
   4. **Limpieza** — archivos sueltos en raíz → `_archivo/YYYY-MM/`
   5. **Log** — append a `_logs/mant.log`
-  6. **STEP 7 Memoria operativa** — audita memoria Claude (pointers, orphans, stale)
-  7. **STEP 8 Drift docs ↔ código** (2026-05-07) — `check_doc_code_drift()` valida: header vs footer de versión en MASTER_RULES y ESTADO; ESTADO §0 cita versiones reales; PESOS.xlsx hash íntegro; `RETENTION_N` consistente con §17.11; referencias a archivos canónicos existen. Reporta solamente; ningún fix automático.
-- **15.4** Retención: backups horarios **168 snapshots (~7 días)** + logs pipeline JSON **30 días por fecha del archivo** (constantes `RETENTION_N` y `RETENTION_PIPELINE_LOGS_DAYS` en `maintenance_60min.py` son fuente de verdad — política limpia §17.3/§17.11)
+  6. **STEP 8 Drift docs ↔ código** (2026-05-07) — `check_doc_code_drift()` valida: header vs footer de versión en MASTER_RULES y ESTADO; ESTADO §0 cita versiones reales; PESOS.xlsx hash íntegro; `RETENTION_N` consistente con §17.11; referencias a archivos canónicos existen. Reporta solamente; ningún fix automático.
+- **15.4** Retención: backups **30 snapshots (~15 días a 2 corridas/día)** + logs pipeline JSON **30 días por fecha del archivo** (constantes `RETENTION_N` y `RETENTION_PIPELINE_LOGS_DAYS` en `maintenance.py` son fuente de verdad — política limpia §17.3/§17.11)
 - **15.5** Lista blanca: `maintenance/whitelist.txt`
 - **15.6** Modo `--dry-run` para validar sin aplicar
 - **15.7** Reportes citan `§X.Y` de este archivo
@@ -346,7 +348,7 @@ Errores → nota CRM "ALERTA M2", NO bloquea upload.
 
 - **16.1** Inventariar antes de crear: `list_scheduled_tasks` + `schtasks /query` + `TaskList`.
 - **16.2** Pipeline mañana: `run_pipeline.bat` → `MejorAhora\Pipeline Davivienda AM` (DAILY 08:30).
-- **16.3** Mantenimiento: `MejorAhora\Mantenimiento 60min` (HOURLY).
+- **16.3** Mantenimiento: `MejorAhora\Mantenimiento AM` (DAILY 07:00) + `MejorAhora\Mantenimiento PM` (DAILY 19:00). Anterior `MejorAhora\Mantenimiento 60min` HOURLY borrada el 2026-05-07 (workaround Cowork).
 - **16.4** `.bat` usa PowerShell `Get-Date -Format yyyyMMdd` para evitar locale issues.
 - **16.5** Pipeline noche: `run_pipeline.bat` → `MejorAhora\Pipeline Davivienda PM` (DAILY 20:30). Pipeline corre 2×/día.
 - **16.6** OAuth token — mantenimiento obligatorio: si el pipeline falla con `invalid_grant` o `Token has been expired or revoked` → correr inmediatamente `py sprint_1/drive_oauth_setup.py`. El token OAuth (`credentials/oauth_token.json`) puede ser revocado por Google si la app está en modo "Testing" y el refresh_token no se usa en ~6 meses, o si el usuario revoca desde myaccount.google.com/permissions. Diagnóstico previo: `py sprint_1/diag_oauth.py > diag_oauth.txt 2>&1`.
@@ -375,10 +377,10 @@ Errores → nota CRM "ALERTA M2", NO bloquea upload.
   Bypass de emergencia: `git commit --no-verify` — debe registrarse en CHANGELOG con la razón (§23.4).
 
 - **17.11 Backups estructurados con retención (no acumulación manual).**
-  - Snapshots horarios automáticos vía `maintenance_60min.py` → `_backups/<ts>/`
-  - **Retención: 168 snapshots = ~7 días.** Rotación FIFO automática. Constante `RETENTION_N` en `maintenance_60min.py` es la fuente de verdad.
+  - Snapshots automáticos a 12h vía `maintenance.py` → `_backups/<ts>/`
+  - **Retención: 30 snapshots ≈ 15 días (2 corridas/día).** Rotación FIFO automática. Constante `RETENTION_N` en `maintenance.py` es la fuente de verdad.
   - Backups manuales puntuales (pre-modificación crítica) → `_backups/YYYY-MM-DD_<motivo>/`
-  - Vencimiento manual: si un backup manual pasa **30 días sin uso**, mantenimiento horario lo borra.
+  - Vencimiento manual: si un backup manual pasa **30 días sin uso**, mantenimiento lo borra.
   - **NUNCA** crear backups paralelos fuera de `_backups/` (se vuelven huérfanos sin retención).
   - Si necesitas un backup permanente fuera del ciclo (ej. snapshot pre-release), va a `credentials/snapshot_permanente_<motivo>.zip` y se documenta en CHANGELOG.
 
@@ -493,5 +495,5 @@ Instrucción:
 
 ---
 
-**FIN MASTER_RULES v2.8**
+**FIN MASTER_RULES v2.9**
 **Próxima revisión:** cuando se sume otro banco o cambie política transversal.
