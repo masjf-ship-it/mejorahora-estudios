@@ -1122,6 +1122,14 @@ def main():
     ap.add_argument("--force", action="store_true", help="Re-procesar aunque ESTADO sea 'Excel generado'")
     args = ap.parse_args()
 
+    # Cloud Routines: materializa credenciales desde env vars antes que
+    # cualquier modulo trate de leer archivos. Sin efecto en local Windows
+    # (cero overwrite si los archivos existen).
+    from cloud_bootstrap import ensure_credentials_from_env, is_cloud_env
+    bootstrap = ensure_credentials_from_env()
+    if is_cloud_env():
+        print(f"[pipeline_davivienda] CLOUD env detected — bootstrap: {bootstrap}")
+
     cfg = cargar_config()
     print(f"[pipeline_davivienda] template={cfg['template']}")
     print(f"[pipeline_davivienda] salida={cfg['salida']}")

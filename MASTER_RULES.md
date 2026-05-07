@@ -1,7 +1,7 @@
 # MASTER_RULES — MejorAhora SAS · Reglas Generales del Proyecto
 
-**Versión:** 3.2
-**Última revisión:** 2026-05-07 (Closing dedup: proponedor_plazos/reglas_negocio/generar_desde_sheets ahora importan TOLERANCIA_*/DIFF_OPCIONES_* de config_reglas. Constantes muertas removidas. §3.9/§3.10 Estados+Amortización documentados. +7 tests pytest: R-DVV-18 guardia plazo, R-DVV-06 override seguros. Total pytest 35→42.)
+**Versión:** 3.3
+**Última revisión:** 2026-05-07 (Cloud Routines Fase 2: `cloud_bootstrap.py` materializa creds desde env vars; `run_pipeline.sh` espejo Linux; `maintenance.py` detecta `CLAUDE_CODE_REMOTE` y skip backup local + clean_root; pipeline + smoke_test integran bootstrap. Repo en GitHub: `masjf-ship-it/mejorahora-estudios`)
 **Mantenido por:** Ciclo mantenimiento 12h + actualizaciones puntuales (ver §19)
 
 > **ESTE ES EL ARCHIVO MAESTRO GENERAL DEL PROYECTO.**
@@ -498,7 +498,7 @@ Instrucción:
 | Retroalimentación | Chat Cowork | Claude Code con memoria persistente |
 | Nuevos bancos | Script nuevo por sesión | Skills empaquetados reutilizables |
 
-**Estado:** En diseño. Esta tabla es la única fuente vigente. Cuando exista plan detallado, agregar archivo y referenciarlo aquí (registrar el cambio en CHANGELOG y bumpear versión).
+**Estado:** Fase 1 ✅ (repo en GitHub `masjf-ship-it/mejorahora-estudios`). Fase 2 ✅ (`cloud_bootstrap.py`, `run_pipeline.sh`, `maintenance.py` cloud-aware). Fase 3 pendiente (Jose configura env vars + crea routines en claude.ai/code/routines). Guía paso a paso: [`_planning/cloud_routines_setup.md`](_planning/cloud_routines_setup.md). Plan completo: [`_planning/CLOUD_ROUTINES_MIGRATION.md`](_planning/CLOUD_ROUTINES_MIGRATION.md).
 
 ---
 
@@ -513,5 +513,5 @@ Instrucción:
 
 ---
 
-**FIN MASTER_RULES v3.2**
+**FIN MASTER_RULES v3.3**
 **Próxima revisión:** cuando se sume otro banco o cambie política transversal.

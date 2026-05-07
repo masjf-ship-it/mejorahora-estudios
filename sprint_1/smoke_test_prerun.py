@@ -167,6 +167,17 @@ def main() -> int:
                     help="Output JSON estructurado")
     args = ap.parse_args()
 
+    # Cloud Routines: materializar creds desde env vars ANTES de chequear.
+    # Sin efecto en local Windows (no overwrite si archivos existen).
+    sys.path.insert(0, str(SCRIPT_DIR))
+    try:
+        from cloud_bootstrap import ensure_credentials_from_env, is_cloud_env
+        boot = ensure_credentials_from_env()
+        if is_cloud_env():
+            print(f"[smoke_test] CLOUD env — bootstrap: {boot}")
+    except Exception as exc:
+        print(f"[smoke_test] WARN: cloud_bootstrap no disponible ({exc})", file=sys.stderr)
+
     checks = [
         ("imports_required", check_imports),
         ("credentials", check_credentials),

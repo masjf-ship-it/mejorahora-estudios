@@ -498,17 +498,27 @@ def main() -> int:
         print(f"[{now_iso()}] heartbeat {mode}")
         return 0
 
+    # Cloud Routines: el backup local NO aplica (filesystem efimero por run).
+    # En cloud el git remoto YA es el backup — cada commit es un snapshot.
+    # Detectamos cloud env y saltamos PASO 1 (backup) + PASO 4 (clean_root).
+    is_cloud = os.environ.get("CLAUDE_CODE_REMOTE", "").lower() == "true"
+
     ts = now_ts()
-    summary = {"ts": ts, "mode": mode}
+    summary = {"ts": ts, "mode": mode, "cloud": is_cloud}
 
-    # Paso 1 — Backup
-    copied, dest = do_backup(dry_run)
-    summary["backup_copied"] = copied
-    summary["backup_path"] = str(dest.relative_to(PROJECT_ROOT)) if not dry_run else "(dry)"
+    if not is_cloud:
+        # Paso 1 — Backup (solo en local Windows)
+        copied, dest = do_backup(dry_run)
+        summary["backup_copied"] = copied
+        summary["backup_path"] = str(dest.relative_to(PROJECT_ROOT)) if not dry_run else "(dry)"
 
-    # Rotacion
-    rotated = rotate_backups(RETENTION_N, dry_run)
-    summary["backup_rotated"] = rotated
+        # Rotacion
+        rotated = rotate_backups(RETENTION_N, dry_run)
+        summary["backup_rotated"] = rotated
+    else:
+        summary["backup_copied"] = 0
+        summary["backup_path"] = "(skipped — cloud env, git remote es backup)"
+        summary["backup_rotated"] = 0
 
     # Rotacion logs pipeline (2026-05-07): _logs/pipeline_davivienda_*.json
     # crecian sin limite (51 archivos en 30 dias pre-rotation).
@@ -532,8 +542,8 @@ def main() -> int:
     rpt = write_anomaly_report(findings, ts)
     summary["report"] = str(rpt.relative_to(PROJECT_ROOT)) if rpt else "none"
 
-    # Paso 4 — Limpieza
-    if not args.no_clean:
+    # Paso 4 — Limpieza (solo local, en cloud el filesystem es efimero)
+    if not args.no_clean and not is_cloud:
         whitelist = load_whitelist()
         moved = clean_root(whitelist, dry_run)
         summary["moved"] = len(moved)

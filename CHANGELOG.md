@@ -212,6 +212,54 @@ Para cambios que implican borrar regla de doc canónico, registrar aquí la regl
 
 ---
 
+- **[2026-05-07] Cloud Routines Fase 1 + Fase 2 — pipeline cloud-ready:**
+
+  Jose autorizó migrar a Anthropic Cloud Routines (plan Max contratado, ~15 runs/día). Pre-requisito: git remoto. Resuelto.
+
+  **Fase 1 — push a GitHub (✅):**
+  - Repo: `https://github.com/masjf-ship-it/mejorahora-estudios` (privado).
+  - Pre-flight scan: 0 secretos commiteados (passwords/tokens reales). Email del usuario aparece en docs (low-risk en repo privado).
+  - Push de la rama `claude/kind-shaw-2be195` (8 commits).
+  - Renombrado branch principal `master` → `main` (convención GitHub moderna).
+  - Merge fast-forward de auditoría → `main`. `main` también pusheada.
+  - Pendiente Jose: cambiar default branch a `main` en GitHub Settings (la UI muestra `claude/kind-shaw-2be195` como default por orden de push).
+
+  **Fase 2 — adaptación código para correr en cloud (✅):**
+
+  - **`sprint_1/cloud_bootstrap.py`** (nuevo): materializa credenciales desde environment variables al inicio de cada run. Tres env vars esperadas:
+    - `MEJORAHORA_SA_JSON` → escribe `credentials/sheets_sa.json`
+    - `MEJORAHORA_OAUTH_TOKEN_JSON` → escribe `credentials/oauth_token.json`
+    - `MEJORAHORA_HUBSPOT_TOKEN` → escribe `sprint_1/config.ini`
+
+    Detecta cloud env vía `CLAUDE_CODE_REMOTE=true`. Cero impacto en local Windows: si los archivos ya existen, no overwrite. Smoke test interno valida JSON antes de escribir.
+
+  - **`run_pipeline.sh`** (nuevo, mode 100755): espejo Linux de `run_pipeline.bat`. Mismas 3 fases (PASO 0 smoke test → PASO 1 listar_pendientes → PASO 2 pipeline). Para Cloud Routines (Linux VM Anthropic).
+
+  - **`pipeline_davivienda.py::main()`**: llama a `ensure_credentials_from_env()` ANTES de `cargar_config()`. Si está en cloud, log explícito `CLOUD env detected — bootstrap: ...`.
+
+  - **`smoke_test_prerun.py`**: igualmente integra bootstrap al inicio. En cloud, las creds aparecen materializadas y el resto de chequeos (PESOS hash, HubSpot token formato, etc.) corren idénticos.
+
+  - **`maintenance/maintenance.py`**: detecta `CLAUDE_CODE_REMOTE` y **skip de PASO 1 (backup local) + PASO 4 (clean_root)** porque en cloud el filesystem es efímero — git remoto YA es backup. Drift checker (STEP 8) sigue corriendo. Summary log incluye `cloud: True/False`.
+
+  - **`_planning/cloud_routines_setup.md`** (nuevo, guía operativa): paso a paso para Jose — cambiar default branch, subir env vars, crear las 4 routines (cron `30 8 * * *` AM, `30 20 * * *` PM, `0 7 * * *` mant AM, `0 19 * * *` mant PM), smoke test inicial, validación 5 días en paralelo.
+
+  **MASTER_RULES.md v3.2 → v3.3**: §22 Estado actualizado con Fase 1 ✅ + Fase 2 ✅, pointer a guía paso a paso.
+
+  **Smoke tests post:**
+  - `test_fase2.py` 16/16 PASS
+  - `pytest sprint_1/tests/` 42/42 PASS
+  - `drift checker` 0 issues
+  - `pre-commit hook` OK
+  - `CLAUDE_CODE_REMOTE=true python maintenance/maintenance.py --dry-run` skipea backup correctamente
+  - `cloud_bootstrap.py` corrido en local (sin env vars) detecta cloud=False y no toca archivos existentes
+
+  **Lo que FALTA (Jose hace):**
+  1. Cambiar default branch a `main` en GitHub Settings.
+  2. Subir 3 env vars en config Claude Code.
+  3. Crear las 4 routines (cron + setup script + prompt).
+  4. Smoke test manual primera routine.
+  5. Validación 5 días en paralelo con Windows Tasks.
+
 - **[2026-05-07] Closing dedup constantes + tests R-DVV-18/06 + estados documentados:**
 
   Cierra el trabajo de deduplicación. Tres módulos restantes ahora importan de config_reglas:
