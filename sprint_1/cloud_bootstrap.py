@@ -40,6 +40,28 @@ def is_cloud_env() -> bool:
     return os.environ.get("CLAUDE_CODE_REMOTE", "").lower() == "true"
 
 
+def _configure_ssl_cert_paths_for_cloud():
+    """En Cloud Routines, Python (via certifi/httplib2) no confia en el CA
+    del proxy TLS de Anthropic. Resultado: SSL CERTIFICATE_VERIFY_FAILED
+    al conectar a googleapis.com / hubapi.com.
+
+    Fix: apuntar a /etc/ssl/certs/ca-certificates.crt (bundle del sistema
+    Debian, que SI incluye la CA del proxy). Esto afecta tanto a httplib2
+    como a urllib3/requests via SSL_CERT_FILE.
+    """
+    if not is_cloud_env():
+        return
+    system_ca = "/etc/ssl/certs/ca-certificates.crt"
+    if Path(system_ca).exists():
+        # SSL_CERT_FILE -> ssl module default (httplib2 lo respeta)
+        os.environ.setdefault("SSL_CERT_FILE", system_ca)
+        # REQUESTS_CA_BUNDLE -> requests/google-api-python-client
+        os.environ.setdefault("REQUESTS_CA_BUNDLE", system_ca)
+        # CURL_CA_BUNDLE -> compat por si algo usa curl
+        os.environ.setdefault("CURL_CA_BUNDLE", system_ca)
+        print(f"[cloud_bootstrap] SSL_CERT_FILE -> {system_ca}")
+
+
 def ensure_credentials_from_env(force: bool = False) -> dict:
     """Materializa credenciales desde env vars si los archivos no existen.
 
@@ -55,6 +77,9 @@ def ensure_credentials_from_env(force: bool = False) -> dict:
 
     # Crear credentials/ si no existe (cloud)
     CREDENTIALS_DIR.mkdir(parents=True, exist_ok=True)
+
+    # SSL: apuntar al CA del sistema (cloud unicamente)
+    _configure_ssl_cert_paths_for_cloud()
 
     # Service Account JSON
     sa_env = os.environ.get("MEJORAHORA_SA_JSON", "").strip()
