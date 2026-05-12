@@ -42,6 +42,8 @@ SALDO_MIN_HIPOTECARIO_ACTIVO = 1_000_000.0  # < $1M = sospecha saldo parcial
 # M1 coherencia cuota vs (seg+cap+int)
 TOLERANCIA_M1_WARN = 70_000.0       # > $70k = warning
 TOLERANCIA_M1_ERROR = 500_000.0     # > $500k = error (salvo R-DVV-06 detectado)
+M1_CUOTA_MAX_SANITY = 10_000_000.0  # warning si cuota > $10M (caso atípico)
+M1_TASA_EA_WARN_MAX = 0.35          # warning si tasa > 35% EA (sospechosa)
 
 # R-DVV-06 G2 — discrepancia seguros aplicados vs +Seguros inferior
 UMBRAL_G2_DISCREPANCIA_SEGUROS = 10_000.0
@@ -77,6 +79,29 @@ TOPE_INGRESOS_FACTOR = 1.10
 # HUBSPOT GENÉRICO REPETIDO (R-DVV-12)
 # ============================================================
 UMBRAL_HUBSPOT_GENERICO = 3  # >=3 clientes con misma firma → genérica
+
+# ============================================================
+# HUBSPOT API (cliente HTTP) — antes hardcodeados en hubspot_client.py
+# ============================================================
+HUBSPOT_BASE_URL = "https://api.hubapi.com"
+HUBSPOT_REQUEST_TIMEOUT_SEC = 20           # urlopen timeout por request
+HUBSPOT_RETRY_DEFAULT = 2                   # nº reintentos default _request()
+HUBSPOT_BACKOFF_BASE_SEC = 1.5              # sleep = BACKOFF * (attempt + 1)
+HUBSPOT_RETRY_STATUS_CODES = (429, 500, 502, 503, 504)
+HUBSPOT_SEARCH_LIMIT_DEFAULT = 1            # search por email/phone/cedula
+HUBSPOT_SEARCH_LIMIT_NAME = 5               # search por nombre (cascada A/B)
+HUBSPOT_NAME_TOKEN_MAX = 5                  # tokens nombre máx en estrategia A
+
+# Propiedades candidatas donde guardamos cédula en HubSpot (orden de búsqueda).
+# El portal usa varios nombres según cómo se configuró el formulario; se prueba
+# de a uno hasta hit. Si HubSpot responde 400 (propiedad inexistente) se salta.
+HUBSPOT_CEDULA_PROPS = (
+    "numero_de_identificacion",
+    "identificacion",
+    "cedula",
+    "numero_de_cedula",
+    "n_de_identificacion",
+)
 
 # ============================================================
 # VERTEX AI / GEMINI VISION

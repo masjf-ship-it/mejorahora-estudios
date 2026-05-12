@@ -352,19 +352,25 @@ def parse_davivienda_pdf(pdf_path: str, cedula_fallback: str = "") -> dict:
     datos["_validacion"] = {}
 
     # Sin FRECH: Total Aplicado = Capital + Int Corr + Seg Vida + Seg Inc
+    # Tolerancia 100.0 COP: es validación INTERNA del extractor para verificar
+    # que el parser capturó bien los campos sumables. NO confundir con la
+    # tolerancia universal ±$70k (MASTER_RULES §8.15) que aplica a SUMA CUOTA /
+    # DIF.SIMULA en validadores M1/M2 — esa es una capa de negocio distinta.
+    # Aquí 100 COP es lo máximo que aceptamos como ruido de redondeo del PDF.
+    _TOL_VALIDACION_EXTRACCION = 100.0
     if not datos["tiene_frech"]:
         esperado = (datos["abonos_capital"] + datos["intereses_corrientes"]
                     + datos["seguro_vida"] + datos["seguro_incendio"]
                     + datos["seguro_terremoto"])
         diff = abs(datos["total_aplicado"] - esperado)
         datos["_validacion"]["sin_frech_diff"] = round(diff, 2)
-        datos["_validacion"]["sin_frech_ok"] = diff < 100.0
+        datos["_validacion"]["sin_frech_ok"] = diff < _TOL_VALIDACION_EXTRACCION
     else:
         # Con FRECH: Pago Minimo = Total - Cobertura
         esperado = datos["total_aplicado"] - datos["frech_cobertura_pag1"]
         diff = abs(datos["pago_minimo_cliente"] - esperado)
         datos["_validacion"]["con_frech_diff"] = round(diff, 2)
-        datos["_validacion"]["con_frech_ok"] = diff < 100.0
+        datos["_validacion"]["con_frech_ok"] = diff < _TOL_VALIDACION_EXTRACCION
 
     # Tasa para estudio (regla 4.1 DAVIVIENDA.md)
     datos["tasa_estudio"] = datos["tasa_cobrada"]

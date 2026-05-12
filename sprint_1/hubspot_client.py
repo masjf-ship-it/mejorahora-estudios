@@ -17,8 +17,38 @@ import urllib.request
 import urllib.error
 import json
 
+try:
+    from config_reglas import (
+        HUBSPOT_BASE_URL,
+        HUBSPOT_REQUEST_TIMEOUT_SEC,
+        HUBSPOT_RETRY_DEFAULT,
+        HUBSPOT_BACKOFF_BASE_SEC,
+        HUBSPOT_RETRY_STATUS_CODES,
+        HUBSPOT_SEARCH_LIMIT_DEFAULT,
+        HUBSPOT_SEARCH_LIMIT_NAME,
+        HUBSPOT_NAME_TOKEN_MAX,
+        HUBSPOT_CEDULA_PROPS,
+    )
+except ImportError:
+    # Fallback defensivo si config_reglas no está en path (tests aislados).
+    HUBSPOT_BASE_URL = "https://api.hubapi.com"
+    HUBSPOT_REQUEST_TIMEOUT_SEC = 20
+    HUBSPOT_RETRY_DEFAULT = 2
+    HUBSPOT_BACKOFF_BASE_SEC = 1.5
+    HUBSPOT_RETRY_STATUS_CODES = (429, 500, 502, 503, 504)
+    HUBSPOT_SEARCH_LIMIT_DEFAULT = 1
+    HUBSPOT_SEARCH_LIMIT_NAME = 5
+    HUBSPOT_NAME_TOKEN_MAX = 5
+    HUBSPOT_CEDULA_PROPS = (
+        "numero_de_identificacion",
+        "identificacion",
+        "cedula",
+        "numero_de_cedula",
+        "n_de_identificacion",
+    )
 
-BASE_URL = "https://api.hubapi.com"
+# Alias retrocompat (algun caller externo podría leerlo)
+BASE_URL = HUBSPOT_BASE_URL
 
 
 class HubSpotClient:
@@ -40,8 +70,11 @@ class HubSpotClient:
         portal_id = cfg["HUBSPOT"].get("portal_id", "").strip()
         return cls(token, portal_id)
 
-    def _request(self, method: str, path: str, body: dict = None, retries: int = 2) -> dict:
-        url = BASE_URL + path
+    def _request(self, method: str, path: str, body: dict = None,
+                 retries: int = None) -> dict:
+        if retries is None:
+            retries = HUBSPOT_RETRY_DEFAULT
+        url = HUBSPOT_BASE_URL + path
         headers = {
             "Authorization": "Bearer " + self.token,
             "Content-Type": "application/json",
@@ -53,21 +86,21 @@ class HubSpotClient:
         last_exc = None
         for attempt in range(retries + 1):
             try:
-                with urllib.request.urlopen(req, timeout=20) as r:
+                with urllib.request.urlopen(req, timeout=HUBSPOT_REQUEST_TIMEOUT_SEC) as r:
                     raw = r.read()
                     if not raw:
                         return {}
                     return json.loads(raw.decode("utf-8"))
             except urllib.error.HTTPError as e:
                 # 429 o 5xx → backoff
-                if e.code in (429, 500, 502, 503, 504) and attempt < retries:
-                    time.sleep(1.5 * (attempt + 1))
+                if e.code in HUBSPOT_RETRY_STATUS_CODES and attempt < retries:
+                    time.sleep(HUBSPOT_BACKOFF_BASE_SEC * (attempt + 1))
                     last_exc = e
                     continue
                 raise
             except urllib.error.URLError as e:
                 if attempt < retries:
-                    time.sleep(1.5 * (attempt + 1))
+                    time.sleep(HUBSPOT_BACKOFF_BASE_SEC * (attempt + 1))
                     last_exc = e
                     continue
                 raise
@@ -109,7 +142,7 @@ class HubSpotClient:
                 "filters": [{"propertyName": "email", "operator": "EQ", "value": email}]
             }],
             "properties": props,
-            "limit": 1,
+            "limit": HUBSPOT_SEARCH_LIMIT_DEFAULT,
         }
         resp = self._request("POST", "/crm/v3/objects/contacts/search", body=body)
         results = resp.get("results", [])
@@ -124,7 +157,7 @@ class HubSpotClient:
                 "filters": [{"propertyName": "phone", "operator": "EQ", "value": phone}]
             }],
             "properties": props,
-            "limit": 1,
+            "limit": HUBSPOT_SEARCH_LIMIT_DEFAULT,
         }
         resp = self._request("POST", "/crm/v3/objects/contacts/search", body=body)
         results = resp.get("results", [])
@@ -143,21 +176,15 @@ class HubSpotClient:
             "firstname", "lastname", "email", "phone", "hubspot_owner_id",
             "banco", "banco_donde_tienes_la_hipoteca_o_leasing_habitacional",
         ]
-        # Propiedades candidatas donde guardamos el CC en HubSpot (ordenadas)
-        cedula_props = [
-            "numero_de_identificacion",
-            "identificacion",
-            "cedula",
-            "numero_de_cedula",
-            "n_de_identificacion",
-        ]
-        for prop in cedula_props:
+        # Propiedades candidatas donde guardamos el CC en HubSpot (orden definido
+        # en config_reglas.HUBSPOT_CEDULA_PROPS — fuente única).
+        for prop in HUBSPOT_CEDULA_PROPS:
             body = {
                 "filterGroups": [{
                     "filters": [{"propertyName": prop, "operator": "EQ", "value": cedula}]
                 }],
                 "properties": props,
-                "limit": 1,
+                "limit": HUBSPOT_SEARCH_LIMIT_DEFAULT,
             }
             try:
                 resp = self._request("POST", "/crm/v3/objects/contacts/search", body=body)
@@ -196,18 +223,21 @@ class HubSpotClient:
             return {}
         props = properties or ["firstname", "lastname", "email", "phone", "hubspot_owner_id"]
 
-        # Estrategia A: todos los tokens en firstname (hasta 5 para no exceder limite HubSpot)
-        tokens_a = tokens[:5]
+        # Estrategia A: todos los tokens en firstname (cap por limite HubSpot)
+        tokens_a = tokens[:HUBSPOT_NAME_TOKEN_MAX]
         filters_a = [{"propertyName": "firstname", "operator": "CONTAINS_TOKEN", "value": t}
                      for t in tokens_a]
-        body_a = {"filterGroups": [{"filters": filters_a}], "properties": props, "limit": 5}
+        body_a = {"filterGroups": [{"filters": filters_a}], "properties": props,
+                  "limit": HUBSPOT_SEARCH_LIMIT_NAME}
         try:
             resp_a = self._request("POST", "/crm/v3/objects/contacts/search", body=body_a)
             results_a = resp_a.get("results", [])
             if len(results_a) == 1:
                 return results_a[0]
-        except Exception:
-            pass
+        except Exception as exc:
+            # No silenciamos; queda trazado para diagnostico sin romper cascada A→B.
+            # (caller normalmente pipeline_davivienda con sus propios logs)
+            print(f"[hubspot_client] search_contact_by_name estrategia A fallo: {exc}")
 
         # Estrategia B: primer token en firstname + ultimo token en lastname
         firstname = tokens[0]
@@ -215,7 +245,8 @@ class HubSpotClient:
         filters_b = [{"propertyName": "firstname", "operator": "CONTAINS_TOKEN", "value": firstname}]
         if lastname:
             filters_b.append({"propertyName": "lastname", "operator": "CONTAINS_TOKEN", "value": lastname})
-        body_b = {"filterGroups": [{"filters": filters_b}], "properties": props, "limit": 5}
+        body_b = {"filterGroups": [{"filters": filters_b}], "properties": props,
+                  "limit": HUBSPOT_SEARCH_LIMIT_NAME}
         resp_b = self._request("POST", "/crm/v3/objects/contacts/search", body=body_b)
         results_b = resp_b.get("results", [])
         if len(results_b) == 1:

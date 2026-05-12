@@ -15,6 +15,7 @@ Las piezas grandes de Ola 3 (B1 BancoStrategy, B2 pytest+CI completo, B3 Workspa
 | B1 BancoStrategy refactor | No hay segundo banco listo para validar la abstracción | NO — esperar a Bancolombia |
 | B2 pytest + CI completo | Sin remoto GitHub configurado, no hay CI real | PARCIAL — B2-light entregado (pytest discovery + tests/dedup), CI cuando haya remoto |
 | B3 Workspace SA | Requiere IAM/billing (MASTER_RULES §17.9 prohíbe a Claude) | NO — Jose ejecuta, Claude documenta |
+| **B11 unificar número-parsers** (descubierto 2026-05-12) | 5 funciones equivalentes con sutiles diferencias en `_limpiar_num` / `_peso_col` / `_f` / `to_float` / `_norm_num` | PARCIAL — testear comportamiento idéntico para casos canónicos primero, después refactor |
 
 ---
 
@@ -173,3 +174,43 @@ Romper links existentes a `1UVsQtyzQHEpfRlcjUrq8gBsXgEqABoym`. Mitigación: deja
 - La prioridad recomendada: **B3 (más alto ROI: cero mantenimiento OAuth) → B1 (cuando arranque Bancolombia) → B2-full (cuando exista CI)**.
 - Cualquiera de los tres es trabajo de >1h y debe ir en commits/PRs separados, con red de seguridad (snapshot pre-cambio + tests post-cambio).
 - Cuando se ejecute, eliminar la sección correspondiente de este archivo. Cuando todas se ejecuten, archivar `_planning/OLA_3_PLAN.md` a `_archivo/` (MASTER_RULES §15.4).
+
+---
+
+## B11 — Unificar número-parsers (descubierto sesión nocturna 2026-05-12)
+
+### Problema
+
+Hay **5 funciones distintas** para parsear números monetarios colombianos en el codebase:
+
+| Función | Archivo | Maneja |
+|---|---|---|
+| `_limpiar_num(s)` | `extract_davivienda_pdf.py:25` | Strings de regex captures con varios formatos |
+| `_peso_col(raw)` | `extract_davivienda_pdf.py:231` (local en función) | Formato colombiano de miles con punto |
+| `_f(v, default)` | `pipeline_davivienda.py:463` | Versión más completa: rangos "X a Y", todos los formatos |
+| `to_float(val)` | `excel_populator.py:190` | Simple: limpia $, comas, % |
+| `_norm_num(v)` | `vision_extractor.py:340` | Muy simple: comma→dot solamente |
+
+**Riesgo**: cada función fue creada con casos reales (Fernando, Jorge, Yeimy, etc.). Sus diferencias sutiles ya están battle-tested para cada uso. **Centralizar sin tests dedicados podría reintroducir bugs viejos.**
+
+### Plan paso a paso
+
+1. **Crear `sprint_1/tests/test_parse_numero.py`** con TODOS los casos canónicos cubiertos por cada función:
+   - Caso Fernando: `_f('$4.800.000')` → 4800000.0
+   - Caso Jorge: `_f('$200,000')` → 200000.0
+   - Caso Yeimy: `_peso_col('22.021')` → 22021.0
+   - Rangos: `_f('$100.000 a $300.000')` → 200000.0 (promedio)
+   - Tasas: `to_float('14,31%')` → 0.1431
+   - Edge: vacíos, None, "N/A"
+
+2. Cada test ejecuta la función ORIGINAL para registrar el comportamiento actual (snapshot test).
+
+3. Crear `sprint_1/utils/parse_numero.py` con `parse_numero(val, *, allow_range=False)` que cubra TODOS los casos.
+
+4. **Migrar UNA función a la vez**, validando que el snapshot test sigue pasando.
+
+5. Después de las 5 migraciones, eliminar las funciones locales.
+
+### Cuándo ejecutar B11
+
+Disparador: tras 7 días de operación cloud sin nuevos casos edge que añadir. Si aparecen casos nuevos, primero documentarlos como tests.

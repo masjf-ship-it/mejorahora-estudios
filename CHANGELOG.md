@@ -256,6 +256,43 @@ Para cambios que implican borrar regla de doc canónico, registrar aquí la regl
   - `pre-commit hook` OK
   - `Mant PM` ejecutado exitosamente en cloud → validación end-to-end del bootstrap cloud
 
+  **FASE 7 — Auditoria `sprint_1/hubspot_client.py` (255 lineas):** constantes centralizadas + 1 anti-patron eliminado.
+  - 9 constantes nuevas en `config_reglas.py`:
+    - `HUBSPOT_BASE_URL` ↔ antes literal `"https://api.hubapi.com"` en linea 21
+    - `HUBSPOT_REQUEST_TIMEOUT_SEC = 20` ↔ literal `timeout=20`
+    - `HUBSPOT_RETRY_DEFAULT = 2` ↔ default `retries: int = 2`
+    - `HUBSPOT_BACKOFF_BASE_SEC = 1.5` ↔ literal `1.5 * (attempt+1)` (x2)
+    - `HUBSPOT_RETRY_STATUS_CODES = (429, 500, 502, 503, 504)` ↔ tuple inline
+    - `HUBSPOT_SEARCH_LIMIT_DEFAULT = 1` ↔ literal `"limit": 1` (x3)
+    - `HUBSPOT_SEARCH_LIMIT_NAME = 5` ↔ literal `"limit": 5` (x2)
+    - `HUBSPOT_NAME_TOKEN_MAX = 5` ↔ literal `tokens[:5]`
+    - `HUBSPOT_CEDULA_PROPS = (...)` ↔ lista inline duplicada
+  - Import defensivo con fallback (para tests aislados que no agregan `sprint_1/` al sys.path).
+  - **Anti-patron eliminado**: `except Exception: pass` silencioso en `search_contact_by_name` estrategia A → ahora `print()` con detalle del fallo (mantiene cascada A→B, pero queda trazado).
+  - Alias `BASE_URL = HUBSPOT_BASE_URL` por retrocompat (caller externo).
+  - Tests: 16/16 fase2 PASS + 50/50 pytest PASS.
+
+  **FASE 8 — Auditoria validadores M1/M2:**
+  - **`sprint_1/validar_extraccion_davivienda.py` (M1, 151 lineas):** 6 magic numbers → constantes:
+    - `1_000_000` ↔ `SALDO_MIN_HIPOTECARIO_ACTIVO` (ya existia)
+    - `10_000_000` ↔ `M1_CUOTA_MAX_SANITY` (NUEVA en config_reglas)
+    - `0.35` ↔ `M1_TASA_EA_WARN_MAX` (NUEVA en config_reglas)
+    - `0.10` ↔ `TOLERANCIA_G3_SUMA_DUPLICADA` (ya existia)
+    - `500_000` ↔ `TOLERANCIA_M1_ERROR` (ya existia)
+    - `70_000` ↔ `TOLERANCIA_M1_WARN` (ya existia)
+  - Import defensivo con fallback.
+  - **`sprint_1/validar_excel_generado.py` (M2, 145 lineas):** 3 issues fixeados:
+    - Dead variable `active_idx = None` eliminada (computaba pero nunca se leia).
+    - **Promesa del docstring cumplida**: B7 plazo_pendiente AHORA SI se valida (`_check` con conversion int defensiva).
+    - Docstring sincronizado con realidad: B13/B14 no se validan porque Regla 9.3 los ajusta post-populator; nota agregada explicando que el control vive en M1.
+  - Tests: 16/16 fase2 PASS + 50/50 pytest PASS.
+
+  **FASE 9 — B5 metricas semanal como Cloud Routine:**
+  - **`run_metricas.sh`** (nuevo, mode 100755): wrapper Linux para `metricas_pipeline.py --dias N`. Soporta `cloud_bootstrap.py` por defensa. Log `_logs/metricas_semanal_YYYYMMDD.txt`. Tail al stdout para que Cloud Routine lo capture en transcript.
+  - `_planning/cloud_routines_setup.md`: agregada "Routine 5: Metricas Semanal" — cron `0 9 * * 1` (lunes 9:00) con prompt para reportar success rate, categorias de fallo, y status "5 dias clean".
+  - Smoke test local: `bash run_metricas.sh 7` → EXIT 0, log generado (sin datos en ventana = OK porque pipeline no ha corrido en cloud todavia).
+  - Soporta criterio ESTADO_PROYECTO §3 "5 dias consecutivos sin errores antes de escalar a Bancolombia" (MASTER_RULES §14.1).
+
 - **[2026-05-07] Cloud Routines Fase 1 + Fase 2 — pipeline cloud-ready:**
 
   Jose autorizó migrar a Anthropic Cloud Routines (plan Max contratado, ~15 runs/día). Pre-requisito: git remoto. Resuelto.

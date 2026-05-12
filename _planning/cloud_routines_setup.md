@@ -78,6 +78,18 @@ Igual a la 1 pero:
 ### Routine 4: Mantenimiento PM
 Igual a la 3, schedule `0 19 * * *`.
 
+### Routine 5: Metricas Semanal (B5 — soporte criterio "5 dias clean")
+| Campo | Valor |
+|---|---|
+| Name | `MejorAhora Metricas Semanal` |
+| Repo | `masjf-ship-it/mejorahora-estudios` |
+| Branch | `main` |
+| Schedule (cron) | `0 9 * * 1` (lunes 09:00 hora servidor) |
+| Setup script | `pip install -r sprint_1/requirements.txt` |
+| Prompt | `Run: bash run_metricas.sh 7. Report success rate, failure categories, and "5 dias clean" status from the tail output.` |
+
+> Esta routine agrega `_logs/pipeline_davivienda_*.json` de los últimos 7 días y genera `_logs/metricas_semanal_YYYYMMDD.txt`. Soporta el criterio de ESTADO_PROYECTO §3 "5 días consecutivos sin errores antes de escalar a Bancolombia" (MASTER_RULES §14.1). El wrapper `run_metricas.sh` también materializa credenciales vía `cloud_bootstrap.py` por defensa, aunque el script en sí solo lee logs locales.
+
 ---
 
 ## Paso 4 — Smoke test inicial (5 min)

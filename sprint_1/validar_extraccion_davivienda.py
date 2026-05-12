@@ -28,6 +28,24 @@ Warnings (no bloquean pero avisan):
 """
 from __future__ import annotations
 
+try:
+    from config_reglas import (
+        SALDO_MIN_HIPOTECARIO_ACTIVO,
+        TOLERANCIA_M1_WARN,
+        TOLERANCIA_M1_ERROR,
+        TOLERANCIA_G3_SUMA_DUPLICADA,
+        M1_CUOTA_MAX_SANITY,
+        M1_TASA_EA_WARN_MAX,
+    )
+except ImportError:
+    # Fallback defensivo (tests aislados que no agregan sprint_1 al sys.path).
+    SALDO_MIN_HIPOTECARIO_ACTIVO = 1_000_000.0
+    TOLERANCIA_M1_WARN = 70_000.0
+    TOLERANCIA_M1_ERROR = 500_000.0
+    TOLERANCIA_G3_SUMA_DUPLICADA = 0.10
+    M1_CUOTA_MAX_SANITY = 10_000_000.0
+    M1_TASA_EA_WARN_MAX = 0.35
+
 
 def validar_datos_cliente(datos) -> tuple[bool, list[str], list[str]]:
     """Retorna (ok, errores, warnings).
@@ -46,17 +64,17 @@ def validar_datos_cliente(datos) -> tuple[bool, list[str], list[str]]:
     # -------- Saldo capital (R-DVV-04: >$1M) --------
     if datos.saldo_capital <= 0:
         errores.append(f"saldo_capital invalido: ${datos.saldo_capital:,.0f}")
-    elif datos.saldo_capital < 1_000_000:
+    elif datos.saldo_capital < SALDO_MIN_HIPOTECARIO_ACTIVO:
         errores.append(
             f"saldo_capital sospechosamente bajo: ${datos.saldo_capital:,.0f} "
-            f"(minimo esperado $1,000,000 para hipotecario activo — "
-            f"probable confusion con saldo parcial, ver R-DVV-03)"
+            f"(minimo esperado ${SALDO_MIN_HIPOTECARIO_ACTIVO:,.0f} para hipotecario "
+            f"activo — probable confusion con saldo parcial, ver R-DVV-03)"
         )
 
     # -------- Cuota mensual --------
     if datos.cuota_mensual <= 0:
         errores.append(f"cuota_mensual invalida: ${datos.cuota_mensual:,.0f}")
-    elif datos.cuota_mensual > 10_000_000:
+    elif datos.cuota_mensual > M1_CUOTA_MAX_SANITY:
         warnings.append(
             f"cuota_mensual muy alta ${datos.cuota_mensual:,.0f} — verificar manualmente"
         )
@@ -69,7 +87,7 @@ def validar_datos_cliente(datos) -> tuple[bool, list[str], list[str]]:
             f"tasa_ea parece porcentaje sin normalizar: {datos.tasa_ea} "
             f"(esperado decimal 0.xxxx, ej 0.1431 para 14.31%)"
         )
-    elif datos.tasa_ea > 0.35:
+    elif datos.tasa_ea > M1_TASA_EA_WARN_MAX:
         warnings.append(f"tasa_ea inusualmente alta: {datos.tasa_ea:.4f} ({datos.tasa_ea*100:.2f}%)")
 
     # -------- Plazos --------
@@ -108,23 +126,24 @@ def validar_datos_cliente(datos) -> tuple[bool, list[str], list[str]]:
         # override de seguros; falta 9.3 para cap/int).
         es_duplicacion = (
             datos.cuota_mensual > 0
-            and abs(suma - 2.0 * datos.cuota_mensual) / datos.cuota_mensual < 0.10
+            and abs(suma - 2.0 * datos.cuota_mensual) / datos.cuota_mensual
+                < TOLERANCIA_G3_SUMA_DUPLICADA
         )
         if es_duplicacion:
             warnings.append(
                 f"suma (seg+cap+int)=${suma:,.0f} ~= 2x cuota=${datos.cuota_mensual:,.0f} "
                 f"-> duplicacion R-DVV-06 detectada. Regla 9.3 corregira cap/int."
             )
-        elif dif > 500_000:
+        elif dif > TOLERANCIA_M1_ERROR:
             errores.append(
                 f"suma (seg+cap+int)=${suma:,.0f} vs cuota=${datos.cuota_mensual:,.0f} "
-                f"diff=${dif:,.0f} (>$500k indica error de extraccion o duplicacion "
-                f"sin override R-DVV-06)"
+                f"diff=${dif:,.0f} (>${TOLERANCIA_M1_ERROR:,.0f} indica error de "
+                f"extraccion o duplicacion sin override R-DVV-06)"
             )
-        elif dif > 70_000:
+        elif dif > TOLERANCIA_M1_WARN:
             warnings.append(
                 f"suma (seg+cap+int)=${suma:,.0f} vs cuota=${datos.cuota_mensual:,.0f} "
-                f"diff=${dif:,.0f} (>$70k, Regla 9.3 lo ajustara)"
+                f"diff=${dif:,.0f} (>${TOLERANCIA_M1_WARN:,.0f}, Regla 9.3 lo ajustara)"
             )
 
     # -------- Warnings soft (cliente opcional) --------

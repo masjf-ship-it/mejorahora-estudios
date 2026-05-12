@@ -15,11 +15,15 @@ Validaciones en hoja ACTUAL:
   - B10 (seguro_vida)       ≈ datos.seguro_vida
   - B11 (seguro_incendio)   ≈ datos.seguro_incendio
   - B12 (seguro_terremoto)  ≈ datos.seguro_terremoto
-  - B13 (capital extracto)  ≈ datos.capital_mensual (tras Regla 9.3)
-  - B14 (intereses extrac)  ≈ datos.interes_mensual (tras Regla 9.3)
   - B15 (saldo capital)     ≈ datos.saldo_capital
   - 6 opciones (B16:B21)    plazos en orden DESCENDENTE (R-3b)
   - activeTab               == 0 (hoja ACTUAL seleccionada)
+
+NOTA: B13 (capital_mensual) y B14 (interes_mensual) NO se validan en M2
+porque la Regla 9.3 los ajusta post-populator y el valor canonico es el
+del Excel ya escrito (la cuota se reconstituye por columnas). El control
+de coherencia 9.3 vive en M1 (validar_extraccion_davivienda) antes del
+write, y en la suma vs cuota que la propia formula B5 reproduce.
 
 Filename: ESTUDIO <NOMBRE MAYUSCULAS>-DD.MM.AA.xlsx (feedback_naming_excel_estudios)
 
@@ -86,10 +90,7 @@ def validar_excel(path_xlsx, datos) -> tuple[bool, list[str], list[str]]:
     ws = wb["ACTUAL"]
 
     # 3) activeTab == 0 (ACTUAL seleccionada) — feedback_excel_copiar_celdas
-    try:
-        active_idx = wb.active.sheet_view.tabSelected
-    except Exception:
-        active_idx = None
+    # (no leemos sheet_view.tabSelected porque wb.index(wb.active) ya cubre el caso)
     if wb.index(wb.active) != 0:
         warnings.append(
             f"activeTab != 0 (ACTUAL deberia ser la primera seleccionada). "
@@ -102,6 +103,15 @@ def validar_excel(path_xlsx, datos) -> tuple[bool, list[str], list[str]]:
            f"B2 credito_id: esperado={datos.credito_id!r} got={ws['B2'].value!r}")
     _check(errores, _aprox(ws["B5"].value, datos.cuota_mensual),
            f"B5 cuota: esperado=${datos.cuota_mensual:,.0f} got={ws['B5'].value!r}")
+    # B7 plazo_pendiente (entero, meses) — promesa del docstring que faltaba implementar
+    try:
+        b7_int = int(float(ws["B7"].value)) if ws["B7"].value is not None else None
+    except (ValueError, TypeError):
+        b7_int = None
+    _check(errores,
+           b7_int is not None and b7_int == int(datos.plazo_pendiente or 0),
+           f"B7 plazo_pendiente: esperado={int(datos.plazo_pendiente or 0)} "
+           f"got={ws['B7'].value!r}")
     _check(errores, _aprox(ws["B10"].value, datos.seguro_vida),
            f"B10 seguro_vida: esperado=${datos.seguro_vida:,.0f} got={ws['B10'].value!r}")
     _check(errores, _aprox(ws["B11"].value, datos.seguro_incendio),
