@@ -47,13 +47,17 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 # CONFIG
 # ============================================================
 
-# gemini-2.5-pro: maxima precision para extractos bancarios.
-# Jose 2026-04-21: priorizar calidad sobre costo para evitar errores de lectura
-# que generan conflictos con bancos/clientes (ver caso Carlos Mario Fonseca).
-# Alternativas en Vertex: "gemini-2.5-flash" (equilibrio), "gemini-2.0-flash-001" (barato).
-DEFAULT_MODEL = "gemini-2.5-pro"
-DEFAULT_PROJECT = "mejorahora-automations"
-DEFAULT_LOCATION = "us-central1"
+# Vision config — fuente unica: config_reglas (MASTER_RULES §17.10).
+# 2026-05-12: deduplicado de literals locales que duplicaban config_reglas.
+# Jose 2026-04-21: priorizar calidad sobre costo (gemini-2.5-pro) para evitar
+# errores de lectura que generan conflictos con bancos (caso Carlos Mario Fonseca).
+# Alternativas en Vertex: "gemini-2.5-flash" (equilibrio), "gemini-2.0-flash-001".
+from config_reglas import (  # noqa: E402
+    DEFAULT_GEMINI_MODEL as DEFAULT_MODEL,
+    GCP_PROJECT as DEFAULT_PROJECT,
+    GCP_LOCATION as DEFAULT_LOCATION,
+    MAX_OUTPUT_TOKENS_VISION,
+)
 
 
 def _get_vertex_config() -> dict:
@@ -306,7 +310,8 @@ def _call_gemini_vision(image_bytes_list: list, model: str = DEFAULT_MODEL) -> d
             # 2026-04-22: subido de 2048 a 8192 tras caso Fernando donde JSON
             # se truncaba en "cuota. gemini-2.5-pro consume tokens en thinking
             # budget interno antes de emitir salida; 2048 quedaba corto.
-            max_output_tokens=8192,
+            # 2026-05-12: dedup — fuente unica config_reglas.MAX_OUTPUT_TOKENS_VISION.
+            max_output_tokens=MAX_OUTPUT_TOKENS_VISION,
             temperature=0.0,
         ),
     )

@@ -18,10 +18,18 @@
 // - Si NO encuentra: alerta al usuario y cancela (no crea duplicado)
 // - NO es trigger automatico por onEdit. Requiere accion explicita del usuario.
 
+// Indices de columna en STAGING/REGISTROS (1-based, formato Google Sheets).
+// Coherente con MASTER_RULES §3.5 (42 cols) + listar_pendientes_hoy.py.
+// TODO 2026-05-12: cuando se sume otro banco con esquema distinto, parametrizar.
+// TODO 2026-05-12: copiar nota_crm (col L) de STAGING a REGISTROS al aprobar?
+// Hoy se pierde — solo se actualiza ESTADO. Si Yenny necesita la nota persistente,
+// considerar agregar `registros.getRange(matchRow, 12).setValue(notaCrm)` antes
+// de borrar la fila de STAGING. Confirmar con Jose si aplica al workflow real.
 const NUM_COLS = 42;        // Columnas A-AP
 const COL_NOMBRE = 1;       // A = NOMBRE CLIENTE (1-based en Sheets)
 const COL_CREDITO = 5;      // E = Numero de Credito
 const COL_ESTADO = 7;       // G = ESTADO
+const COL_NOTA_CRM = 12;    // L = Nota PARA CRM (pipeline escribe aqui — §3.8)
 
 function onOpen() {
   SpreadsheetApp.getUi()

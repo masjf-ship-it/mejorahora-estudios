@@ -236,8 +236,9 @@ DIRECT_CELLS = {
 
 PLAZO_CELLS = ['B16', 'B17', 'B18', 'B19', 'B20', 'B21']
 
-# Plazos por defecto (decrecientes, en anos)
-_PLAZOS_DEFAULT = [13.5, 12.0, 11.0, 10.0, 9.0, 8.5]
+# Plazos por defecto (decrecientes, en anos). Importado de reglas_negocio
+# para evitar duplicacion (2026-05-12: antes era literal local stale-prone).
+from reglas_negocio import PLAZOS_DEFAULT as _PLAZOS_DEFAULT  # noqa: E402
 
 
 def _calcular_plazos_dinamicos(plazo_pendiente_meses):
@@ -374,10 +375,13 @@ def _find_or_create_cell(sheet_root, cell_ref):
 def _modify_workbook_xml(
     wb_xml_bytes,
     sheet_index=2,
-    new_area="ESTUDIO!$A$1:$R$54",
+    new_area="ESTUDIO!$A$1:$R$85",
     active_tab_idx=None,
     window_layout=None,
 ):
+    # FIX 2026-05-12: default new_area era "$A$1:$R$54" (stale). El call site
+    # real en crear_estudio pasa "$A$1:$R$85". Si alguien llama sin pasar
+    # new_area, antes obtenia rango chico que cortaba el print area en R54.
     """Modifica workbook.xml via REGEX (no XML parser) para preservar namespaces originales.
 
     Hace:
@@ -777,8 +781,12 @@ class ExcelPopulator:
                 for item in zin.infolist():
                     data = zin.read(item.filename)
                     
-                    if item.filename == 'xl/worksheets/sheet2.xml':
-                        # ACTUAL sheet: replace INDEX/MATCH with direct values
+                    if item.filename == actual_sheet_file:
+                        # ACTUAL sheet: replace INDEX/MATCH with direct values.
+                        # FIX 2026-05-12: usa actual_sheet_file detectado dinamicamente
+                        # (era hardcoded 'xl/worksheets/sheet2.xml' — si template reordena
+                        # hojas, el detector arriba lo capturaba pero este bloque NO
+                        # ejecutaba, dejando INDEX/MATCH sin reemplazar).
                         root = ET.fromstring(data)
                         sheet_data = root.find(f'{ns_tag}sheetData')
 
@@ -975,6 +983,13 @@ class PDFExporter:
                         data = ET.tostring(root, xml_declaration=True, encoding='UTF-8')
                         data = _fix_xml_namespaces(data)
                     elif item.filename == 'xl/worksheets/sheet3.xml':
+                        # TODO 2026-05-12: hardcoded sheet3.xml para hoja ESTUDIO.
+                        # Si template reordena hojas, esto deja de funcionar.
+                        # Cuando se active la feature PDFExporter, refactor para
+                        # usar _detectar_estudio() como hace ExcelPopulator.
+                        # Por ahora no es ruta productiva (PDFExporter no se usa
+                        # en pipeline_davivienda — solo manual via
+                        # generar_estudio_completo con generar_pdf=True).
                         root = ET.fromstring(data)
                         sheet_data = root.find(f'{ns}sheetData')
                         rows_to_remove = []
