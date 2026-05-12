@@ -31,6 +31,13 @@ TS() { date +"%Y-%m-%d %H:%M:%S"; }
   echo "===================================================="
 } >> "$LOG"
 
+# metricas_pipeline.py es stdlib only, no requiere pip. Hacemos pip install
+# de todas formas por consistencia con run_pipeline.sh (es cheap idempotente).
+if [ -f "$BASE/sprint_1/requirements.txt" ]; then
+  echo "[$(TS)] pip install (defensivo, idempotente)" >> "$LOG"
+  pip install --quiet -r "$BASE/sprint_1/requirements.txt" >> "$LOG" 2>&1 || true
+fi
+
 cd "$BASE/sprint_1"
 
 # Materializa credenciales si estamos en cloud (no estrictamente necesario

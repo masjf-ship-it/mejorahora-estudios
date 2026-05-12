@@ -22,6 +22,20 @@ TS() { date +"%Y-%m-%d %H:%M:%S"; }
   echo "===================================================="
 } >> "$LOG"
 
+# ---------------------------------------------------------
+# PASO -1: pip install (en Cloud Routines el setup script
+# corre antes del clone del repo y no encuentra requirements.txt,
+# por eso lo hacemos aqui despues del clone)
+# ---------------------------------------------------------
+echo "[$(TS)] PASO -1: pip install -r sprint_1/requirements.txt" >> "$LOG"
+pip install --quiet -r "$BASE/sprint_1/requirements.txt" >> "$LOG" 2>&1
+RC_PIP=$?
+echo "[$(TS)] PASO -1 exit=$RC_PIP" >> "$LOG"
+if [ $RC_PIP -ne 0 ]; then
+  echo "[$(TS)] ABORT: pip install fallo, no se puede ejecutar pipeline" >> "$LOG"
+  exit 5
+fi
+
 cd "$BASE/sprint_1"
 
 # ---------------------------------------------------------
