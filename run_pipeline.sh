@@ -11,6 +11,19 @@ BASE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOGDIR="$BASE/_logs"
 mkdir -p "$LOGDIR"
 
+# ---------------------------------------------------------
+# SSL/TLS — Cloud Routines tienen proxy TLS de Anthropic con CA propia.
+# httplib2 lee su CA bundle al IMPORT desde HTTPLIB2_CA_CERTS env var,
+# por eso lo seteamos AQUI antes de cualquier python.
+# (cloud_bootstrap.py tambien lo setea, redundante pero defensivo.)
+# ---------------------------------------------------------
+if [ "${CLAUDE_CODE_REMOTE:-}" = "true" ] && [ -f /etc/ssl/certs/ca-certificates.crt ]; then
+  export SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+  export REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
+  export CURL_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
+  export HTTPLIB2_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
+fi
+
 STAMP=$(date +%Y%m%d)
 LOG="$LOGDIR/scheduled_${STAMP}.txt"
 TS() { date +"%Y-%m-%d %H:%M:%S"; }

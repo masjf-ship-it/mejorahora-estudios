@@ -19,6 +19,14 @@ BASE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOGDIR="$BASE/_logs"
 mkdir -p "$LOGDIR"
 
+# SSL: ver nota en run_pipeline.sh (proxy TLS Anthropic + httplib2 cacheado).
+if [ "${CLAUDE_CODE_REMOTE:-}" = "true" ] && [ -f /etc/ssl/certs/ca-certificates.crt ]; then
+  export SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+  export REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
+  export CURL_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
+  export HTTPLIB2_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
+fi
+
 DIAS="${1:-7}"
 STAMP=$(date +%Y%m%d)
 LOG="$LOGDIR/metricas_semanal_${STAMP}.txt"
