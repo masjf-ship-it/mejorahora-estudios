@@ -36,7 +36,7 @@ TS() { date +"%Y-%m-%d %H:%M:%S"; }
 # --break-system-packages: PEP 668 (ver nota en run_pipeline.sh).
 if [ -f "$BASE/sprint_1/requirements.txt" ]; then
   echo "[$(TS)] pip install (defensivo, idempotente)" >> "$LOG"
-  pip install --quiet --break-system-packages -r "$BASE/sprint_1/requirements.txt" >> "$LOG" 2>&1 || true
+  pip install --quiet --break-system-packages --ignore-installed -r "$BASE/sprint_1/requirements.txt" >> "$LOG" 2>&1 || true
 fi
 
 cd "$BASE/sprint_1"

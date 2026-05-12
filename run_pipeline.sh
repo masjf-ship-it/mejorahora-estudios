@@ -34,7 +34,10 @@ TS() { date +"%Y-%m-%d %H:%M:%S"; }
 # En Windows (run_pipeline.bat) este flag no aplica.
 # ---------------------------------------------------------
 echo "[$(TS)] PASO -1: pip install -r sprint_1/requirements.txt" >> "$LOG"
-pip install --quiet --break-system-packages -r "$BASE/sprint_1/requirements.txt" >> "$LOG" 2>&1
+# --break-system-packages: PEP 668 (Debian externally-managed)
+# --ignore-installed: el sistema tiene 'packaging' como dpkg y no puede desinstalarlo
+#   (RECORD ausente); con --ignore-installed pip omite el uninstall step.
+pip install --quiet --break-system-packages --ignore-installed -r "$BASE/sprint_1/requirements.txt" >> "$LOG" 2>&1
 RC_PIP=$?
 echo "[$(TS)] PASO -1 exit=$RC_PIP" >> "$LOG"
 if [ $RC_PIP -ne 0 ]; then
