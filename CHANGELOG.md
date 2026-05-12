@@ -214,6 +214,37 @@ Para cambios que implican borrar regla de doc canónico, registrar aquí la regl
 
 ## 2026-05-12
 
+- **[2026-05-12 MIGRATION COMPLETE] Cloud Routines E2E funcional tras 6 fixes de infraestructura:**
+
+  **Resultado smoke test #7:** Pipeline AM ejecutado en cloud con 6 clientes pendientes:
+  - 5/6 Excel generados y subidos a Drive §4.2 (JHON VERDUGO, YAMILE DIAZ, ALVARO MAHECHA, FLOR GONZALEZ, JULIETH ZARATE)
+  - 1/6 REVISION_MANUAL legitimo (DANITZA CAPERA, credito 571616690013243-5, R-DVV-11 DIF.SIMULA $-154k fuera tol ±$70k) — no es bug infra, sino pipeline funcionando correctamente
+  - M2: 0 alertas
+
+  **6 fixes de infraestructura aplicados (todos en `main`):**
+  
+  | # | Problema | Fix | Commit |
+  |---|---|---|---|
+  | 1 | Setup script corre antes del clone → no encuentra `sprint_1/requirements.txt` | Mover `pip install` al inicio de `run_pipeline.sh` / `run_metricas.sh` (PASO -1) | `eadbbfb` |
+  | 2 | Debian externally-managed env (PEP 668) bloquea pip | Agregar `--break-system-packages` | `aad8ba7` |
+  | 3 | `packaging 24.0` instalado via dpkg, pip no puede desinstalar (RECORD ausente) | Agregar `--ignore-installed` | `10355c5` |
+  | 4 | Proxy TLS Anthropic con CA propia → SSL CERTIFICATE_VERIFY_FAILED | `_configure_ssl_cert_paths_for_cloud()` en `cloud_bootstrap.py` | `345ad08` |
+  | 5 | `httplib2` cachea CA bundle al IMPORT → fix #4 llega tarde | Export `HTTPLIB2_CA_CERTS` + 3 vars SSL a nivel shell ANTES de python | `7ed524f` |
+  | 6 | UI red en "De confianza" puede agravar el TLS | Cambiar a "Completo" en entorno MejorAhora via UI | (UI-only) |
+
+  **Configuracion UI Claude Code completada:**
+  - Entorno "MejorAhora" creado en `claude.ai/code` con 3 env vars (MEJORAHORA_SA_JSON, MEJORAHORA_OAUTH_TOKEN_JSON, MEJORAHORA_HUBSPOT_TOKEN)
+  - Acceso a la red: "Completo" (sin proxy)
+  - Setup script: vacio (pip install vive en wrappers bash post-clone)
+  - Asignado a las 4 routines: Pipeline AM, Pipeline PM, Mantenimiento AM, Mantenimiento PM
+
+  **Tiempo invertido en debugging:** ~30 min, 7 smoke tests, 6 commits incrementales hasta verde.
+
+  **Estado:**
+  - Cloud Routines: 100% operativas
+  - Windows Tasks: siguen activas como fallback hasta validar 5 dias consecutivos en cloud (ESTADO_PROYECTO §3 criterio)
+  - Repo: publico (privatizar tras 5 dias clean OK)
+
 - **[2026-05-12] SESION NOCTURNA — Cloud Routines validadas + auditoria 3 modulos:**
 
   Jose autorizo trabajo de 10h sin interrupciones para cerrar pendientes. Resumen de logros:
