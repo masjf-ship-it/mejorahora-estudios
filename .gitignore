@@ -37,3 +37,12 @@ desktop.ini
 .vscode/
 .idea/
 *.swp
+
+# Playwright MCP captures (transient, per-session)
+.playwright-mcp/
+*.png
+*.jpeg
+*.jpg
+
+# Python pyenv local artifacts
+*.bak
