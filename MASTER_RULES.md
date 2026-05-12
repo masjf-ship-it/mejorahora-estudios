@@ -1,7 +1,7 @@
 # MASTER_RULES — MejorAhora SAS · Reglas Generales del Proyecto
 
-**Versión:** 3.3
-**Última revisión:** 2026-05-07 (Cloud Routines Fase 2: `cloud_bootstrap.py` materializa creds desde env vars; `run_pipeline.sh` espejo Linux; `maintenance.py` detecta `CLAUDE_CODE_REMOTE` y skip backup local + clean_root; pipeline + smoke_test integran bootstrap. Repo en GitHub: `masjf-ship-it/mejorahora-estudios`)
+**Versión:** 3.4
+**Última revisión:** 2026-05-12 (Sesión nocturna: 4 routines Cloud creadas en Anthropic, TEST H staging_update → pytest, auditoría excel_populator + vision_extractor con 5 fixes de drift de constantes + 1 bug latente sheet path, audit limpio apps_script con 2 TODOs)
 **Mantenido por:** Ciclo mantenimiento 12h + actualizaciones puntuales (ver §19)
 
 > **ESTE ES EL ARCHIVO MAESTRO GENERAL DEL PROYECTO.**
@@ -513,5 +513,5 @@ Instrucción:
 
 ---
 
-**FIN MASTER_RULES v3.3**
+**FIN MASTER_RULES v3.4**
 **Próxima revisión:** cuando se sume otro banco o cambie política transversal.
