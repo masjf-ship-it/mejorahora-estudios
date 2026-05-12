@@ -25,10 +25,16 @@ TS() { date +"%Y-%m-%d %H:%M:%S"; }
 # ---------------------------------------------------------
 # PASO -1: pip install (en Cloud Routines el setup script
 # corre antes del clone del repo y no encuentra requirements.txt,
-# por eso lo hacemos aqui despues del clone)
+# por eso lo hacemos aqui despues del clone).
+#
+# --break-system-packages: PEP 668 / Debian "externally managed env"
+# requiere este flag para instalar sobre paquetes del sistema en el
+# container de Anthropic Cloud Routines. Sin esto pip aborta con
+# "error: externally-managed-environment" o conflicto packaging RECORD.
+# En Windows (run_pipeline.bat) este flag no aplica.
 # ---------------------------------------------------------
 echo "[$(TS)] PASO -1: pip install -r sprint_1/requirements.txt" >> "$LOG"
-pip install --quiet -r "$BASE/sprint_1/requirements.txt" >> "$LOG" 2>&1
+pip install --quiet --break-system-packages -r "$BASE/sprint_1/requirements.txt" >> "$LOG" 2>&1
 RC_PIP=$?
 echo "[$(TS)] PASO -1 exit=$RC_PIP" >> "$LOG"
 if [ $RC_PIP -ne 0 ]; then
