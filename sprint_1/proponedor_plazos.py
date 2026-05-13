@@ -35,11 +35,21 @@ from reglas_negocio import (
     BANCOS_SIN_INGRESOS_REQUERIDOS,
 )
 # Constantes centralizadas (single source of truth — MASTER_RULES §8.15).
-# Antes hardcoded como literals; deduplicado 2026-05-07.
+# Antes hardcoded como literals; deduplicado 2026-05-07 y 2026-05-12.
 from config_reglas import (
     DIFF_OPCIONES_DEFAULT,
     DIFF_OPCIONES_PLAZO_CHICO,
     PLAZO_CHICO_MESES,
+    # Ratios Mode B (ingresos requeridos) — antes 0.39/0.29 hardcoded
+    RATIO_VIS,
+    RATIO_NO_VIS,
+    TOPE_INGRESOS_FACTOR,
+    # §3c piso abono tiered — antes 100k/200k/300M hardcoded
+    PISO_ABONO_SALDO_BAJO,
+    PISO_ABONO_SALDO_ALTO,
+    SALDO_THRESHOLD_TIER,
+    # Regla 9.4 — paso de saltos en serie
+    SALTO_ABONO_SERIE,
 )
 
 
@@ -64,7 +74,7 @@ def _ea_a_mv(ea: float) -> float:
 
 
 def _ingresos_requeridos(cuota_total: float, es_vis: bool) -> float:
-    ratio = 0.39 if es_vis else 0.29
+    ratio = RATIO_VIS if es_vis else RATIO_NO_VIS
     return cuota_total / ratio
 
 
@@ -210,7 +220,7 @@ def _proponer_plazos_impl(
             seguros=seguros_totales,
             ingresos_cliente=ingresos_cliente,
             es_vis=es_vis,
-            tope_factor=1.10,
+            tope_factor=TOPE_INGRESOS_FACTOR,
         )
         if plazo_min_factible_anos is not None:
             holgura = plazo_pend_anos - plazo_min_factible_anos
@@ -277,13 +287,14 @@ def _plazo_min_factible(
     seguros: float,
     ingresos_cliente: float,
     es_vis: bool,
-    tope_factor: float = 1.10,
+    tope_factor: float = TOPE_INGRESOS_FACTOR,
 ) -> Optional[float]:
     """Menor plazo (en anos, granularidad mes) cuya cuota cumpla
     cuota + seguros <= ingresos * ratio * tope_factor.
 
-    Ratio: 0.39 VIS / 0.29 NO VIS (colchon vs 40%/30% banco).
-    tope_factor 1.10 = 10% extra permitido (ingresos reales vs certificados).
+    Ratio: RATIO_VIS (VIS) / RATIO_NO_VIS (NO VIS) (colchon vs 40%/30% banco).
+    tope_factor TOPE_INGRESOS_FACTOR = 10% extra permitido (ingresos reales vs
+    certificados). Las 3 constantes viven en config_reglas.py.
 
     Devuelve anos (float) del primer mes donde la cuota es factible.
     Devuelve None si ningun plazo 1-30 anos cumple (caso extremo).
@@ -291,7 +302,7 @@ def _plazo_min_factible(
     if ingresos_cliente <= 0 or saldo <= 0:
         return None
     tasa_mv = _ea_a_mv(tasa_ea)
-    ratio = 0.39 if es_vis else 0.29
+    ratio = RATIO_VIS if es_vis else RATIO_NO_VIS
     cuota_max = ingresos_cliente * ratio * tope_factor
     if cuota_max <= seguros:
         return None  # ni siquiera los seguros caben en la capacidad
@@ -338,7 +349,7 @@ def _regimen_e_si_aplica(
 
     serie = [5.0, 4.0, 3.0, 2.0, 1.5, 1.0]
     tasa_mv = _ea_a_mv(tasa_ea)
-    tope_ingresos = ingresos_cliente * 1.10
+    tope_ingresos = ingresos_cliente * TOPE_INGRESOS_FACTOR
 
     for a in serie:
         meses = int(round(a * 12))
@@ -371,9 +382,10 @@ def _proponer_por_saltos_100k(
     cuota_actual = _pmt(tasa_mv, int(round(plazo_pend_anos * 12)), saldo) + seguros
 
     # Regla §3c (Jose 2026-04-23 + retro 2026-04-24): abono minimo OPC 1 tiered.
+    # Constantes en config_reglas.py: PISO_ABONO_SALDO_BAJO / _ALTO / SALDO_THRESHOLD_TIER.
     #   saldo < $300M  -> piso $100k (subido desde $80k tras retro Sandra)
     #   saldo >= $300M -> piso $200k (creditos grandes admiten abonos mas altos)
-    piso_abono = 100_000.0 if saldo < 300_000_000.0 else 200_000.0
+    piso_abono = PISO_ABONO_SALDO_BAJO if saldo < SALDO_THRESHOLD_TIER else PISO_ABONO_SALDO_ALTO
 
     # 1) Rango legal de años (Ley 546 — corregido 2026-04-24 Jose)
     #    Regla: credito_total (pagado + restante) >= 5 anos.
@@ -419,20 +431,24 @@ def _proponer_por_saltos_100k(
         return _pmt(tasa_mv, meses, saldo) + seguros - cuota_actual
 
     # 3) Generar serie de targets de abono
+    # Paso = SALTO_ABONO_SERIE (config_reglas, default $100k). La serie por
+    # defecto sin abono objetivo es [1x, 2x, 3x, 4x, 5x, 6x] del paso.
+    _S = SALTO_ABONO_SERIE
+
     def _targets(shift=0.0):
         if abono_min > 0 or abono_max > 0:
             amin = abono_min if abono_min > 0 else abono_max
             amax = abono_max if abono_max > 0 else abono_min
             if abs(amax - amin) < 1:
                 # abono fijo -> centrar
-                base = [amin - 200_000, amin - 100_000, amin,
-                        amin + 100_000, amin + 200_000, amin + 300_000]
+                base = [amin - 2 * _S, amin - _S, amin,
+                        amin + _S, amin + 2 * _S, amin + 3 * _S]
             else:
                 medio = (amin + amax) / 2.0
-                base = [amin - 100_000, amin, medio, amax,
-                        amax + 100_000, amax + 200_000]
+                base = [amin - _S, amin, medio, amax,
+                        amax + _S, amax + 2 * _S]
         else:
-            base = [100_000, 200_000, 300_000, 400_000, 500_000, 600_000]
+            base = [_S, 2 * _S, 3 * _S, 4 * _S, 5 * _S, 6 * _S]
         return [max(0.0, t + shift) for t in base]
 
     # 4) Para cada target, elegir año con preferencia por enteros.
@@ -542,7 +558,7 @@ def _proponer_por_saltos_100k(
                 and opciones_ord[0] <= plazo_pend_anos - 0.5
                 and abono_de(opciones_ord[0]) >= piso_abono):
             break
-        shift += 100_000  # la siguiente iteracion sube un escalon la serie
+        shift += SALTO_ABONO_SERIE  # la siguiente iteracion sube un escalon la serie
 
     # 6) Notas diagnosticas
     notas = []
@@ -567,7 +583,7 @@ def _proponer_por_saltos_100k(
             meses = int(round(a * 12))
             cuota_a = _pmt(tasa_mv, meses, saldo) + seguros
             ing_req = _ingresos_requeridos(cuota_a, es_vis)
-            if ing_req <= ingresos_cliente * 1.10:
+            if ing_req <= ingresos_cliente * TOPE_INGRESOS_FACTOR:
                 factibles += 1
         notas.append(
             "Factibles (ingresos x 1.10): {}/6  |  Ingresos cliente: ${:,.0f}"
@@ -580,7 +596,7 @@ def _proponer_por_saltos_100k(
         ab = cuota_a - cuota_actual
         ing_req = _ingresos_requeridos(cuota_a, es_vis)
         tag = ""
-        if ingresos_cliente > 0 and ing_req > ingresos_cliente * 1.10:
+        if ingresos_cliente > 0 and ing_req > ingresos_cliente * TOPE_INGRESOS_FACTOR:
             tag = " [agresiva]"
         notas.append(
             "  Opc{} {:>4.1f} años | cuota ${:,.0f} | abono ${:,.0f} | req ${:,.0f}{}"
@@ -767,7 +783,7 @@ def _proponer_mixto_viable(
     # Si el abono de una opcion < piso, reemplazar con plazos mas cortos
     # que si cumplan. Solo actua si al menos 3 opciones quedan (caso extremo:
     # ingresos muy bajos, no forzar piso infactible).
-    piso_abono_b = 100_000.0 if saldo < 300_000_000.0 else 200_000.0
+    piso_abono_b = PISO_ABONO_SALDO_BAJO if saldo < SALDO_THRESHOLD_TIER else PISO_ABONO_SALDO_ALTO
     def _abono_b(anos_):
         return _pmt(tasa_mv, int(round(anos_ * 12)), saldo) + seguros - cuota_actual
 
@@ -792,14 +808,15 @@ def _proponer_mixto_viable(
 
     # Notas diagnosticas
     notas = []
-    ratio_pct = 39 if es_vis else 29
-    cuota_max_factible = ingresos_cliente * (0.39 if es_vis else 0.29) * 1.10
+    ratio_real = RATIO_VIS if es_vis else RATIO_NO_VIS
+    ratio_pct = round(ratio_real * 100)
+    cuota_max_factible = ingresos_cliente * ratio_real * TOPE_INGRESOS_FACTOR
     notas.append(
         "[Modo B: mixto_viable] 3 factibles + 3 agresivas (viabilidad primero).")
     notas.append(
         "Plazo min factible: {:.2f} anos | Cuota max factible: ${:,.0f} "
-        "(ratio {}%, tope x1.10)".format(
-            plazo_min_factible, cuota_max_factible, ratio_pct))
+        "(ratio {}%, tope x{:.2f})".format(
+            plazo_min_factible, cuota_max_factible, ratio_pct, TOPE_INGRESOS_FACTOR))
     if hay_abono_obj:
         notas.append(
             "Abono cliente [${:,.0f} - ${:,.0f}] honrado en opc 4-6 (agresivas)".format(
@@ -827,7 +844,7 @@ def _proponer_mixto_viable(
         ab = cuota_a - cuota_actual
         ing_req = _ingresos_requeridos(cuota_a, es_vis)
         tag = ""
-        if ing_req > ingresos_cliente * 1.10:
+        if ing_req > ingresos_cliente * TOPE_INGRESOS_FACTOR:
             tag = " [agresiva]"
         notas.append(
             "  Opc{} {:>4.1f} anos | cuota ${:,.0f} | abono ${:,.0f} | req ${:,.0f}{}"
@@ -866,9 +883,12 @@ def _proponer_por_ingresos(
     es_vis: bool,
 ) -> tuple:
     """3-4 opciones con cuota tal que ingresos_req <= ingresos cliente,
-    luego 2 opciones con mayor ahorro (cuota un poco mas alta)."""
+    luego 2 opciones con mayor ahorro (cuota un poco mas alta).
+
+    NOTA (2026-04-17): este metodo es legado; ver docstring del modulo.
+    """
     tasa_mv = _ea_a_mv(tasa_ea)
-    ratio = 0.39 if es_vis else 0.29
+    ratio = RATIO_VIS if es_vis else RATIO_NO_VIS
     # Cuota maxima que cumple ratio con ingresos del cliente
     cuota_max_segun_ingresos = ingresos * ratio
 

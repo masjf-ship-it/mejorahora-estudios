@@ -214,3 +214,52 @@ Hay **5 funciones distintas** para parsear números monetarios colombianos en el
 ### Cuándo ejecutar B11
 
 Disparador: tras 7 días de operación cloud sin nuevos casos edge que añadir. Si aparecen casos nuevos, primero documentarlos como tests.
+
+---
+
+## B12 — Persistencia de logs JSON cloud (descubierto 2026-05-12)
+
+### Problema
+
+El pipeline en cloud genera `_logs/pipeline_davivienda_<timestamp>.json` por cada
+corrida, pero el filesystem del container Anthropic es **efímero** — el archivo
+se pierde al terminar la routine. Resultado:
+
+- La **Routine 5 Métricas Semanal** (lunes 9:00) corre en su propio container
+  fresco y ve 0 archivos JSON → reporte siempre vacío
+- No hay forma de verificar "5 días clean" desde cloud
+- Pérdida de auditoría: no podemos ver retroactivamente qué pasó hace 3 días
+
+### Síntoma
+
+```
+# Metricas semanales pipeline Davivienda — 2026-05-12 23:34
+# Ventana: ultimos 7 dias  ·  archivos JSON analizados: 0
+(sin datos en la ventana — pipeline no corrio o logs ausentes)
+```
+
+### Opciones de fix
+
+| Opción | Pros | Contras |
+|---|---|---|
+| **A. Commit logs a git** después de cada pipeline run | Visible en GitHub, sincroniza automático entre cloud y local | Clutterea el repo (~1 commit por run = 60+/mes) |
+| **B. Upload logs a Drive** (carpeta dedicada, sólo SA) | Limpio, no clutterea repo | Requiere agregar lógica en `pipeline_davivienda.py::main()`, manejar cuota Drive SA |
+| **C. Upload logs a Google Sheets** (1 fila/run) | Queryable, dashboards posibles | Cambio de formato (JSON → row), requiere schema definido |
+| **D. Routine 5 también corre el pipeline antes de las métricas** | No requiere infra extra | Pipeline corre 3x al día en vez de 2x, gasto innecesario de creditos |
+
+### Plan paso a paso (opción B recomendada)
+
+1. Crear carpeta Drive `_logs_pipeline_json/` con permisos SA-only (no compartida).
+2. En `pipeline_davivienda.py::main()`, después de escribir el JSON local, subirlo
+   a Drive usando el cliente SA (no OAuth — los logs no van a §4.2 cliente).
+3. En `metricas_pipeline.py`, agregar lógica que:
+   - Si `is_cloud_env()`: descarga últimos N días de la carpeta Drive
+   - Si local: usa `_logs/` como hoy
+4. Mantener escritura local también (zero downside).
+
+### Cuándo ejecutar B12
+
+Disparador: cuando llevemos 3+ semanas en cloud y la falta de métricas semanales
+empiece a doler (no sabemos si vamos por el día 5 clean o no). Si Jose decide
+deshabilitar Windows Tasks antes de tener B12, valida el "5 días clean"
+manualmente mirando cada transcript de Routine en `claude.ai/code/routines`.

@@ -67,6 +67,12 @@ DIFF_OPCIONES_DEFAULT = 100_000.0
 DIFF_OPCIONES_PLAZO_CHICO = 70_000.0
 PLAZO_CHICO_MESES = 60  # < 60m permite usar diff $70k
 
+# Regla 9.4 — saltos en serie default cuando NO hay abono objetivo
+# Serie base: [100k, 200k, 300k, 400k, 500k, 600k]. El paso se usa para:
+#   (a) construir la serie por defecto
+#   (b) shift incremental cuando Opc1 no ahorra >=1 año vs plazo pendiente
+SALTO_ABONO_SERIE = 100_000.0
+
 # Granularidad operativa proponedor (NO floor legal — ver Ley 546)
 PLAZO_MINIMO_PRACTICO_ANOS = 0.5  # = 6 meses
 

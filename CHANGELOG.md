@@ -214,6 +214,59 @@ Para cambios que implican borrar regla de doc canónico, registrar aquí la regl
 
 ## 2026-05-12
 
+- **[2026-05-12 SESION DIA 1 CLOUD — trabajo paralelo mientras Jose revisa Excel:**
+
+  Mientras Jose revisaba los 5 Excel generados anoche (post-smoke #7), Claude
+  ejecutó 4 tareas autónomas (A-D) explícitamente autorizadas por 8h:
+
+  **A. `_planning/cloud_routines_setup.md` v1.0 → v2.0**:
+  - Documenta los 6 fixes infra descubiertos en la sesión de migración
+  - Setup script del entorno: vacío (no `pip install`) — el pip vive en wrappers bash
+  - Acceso a la red: "Completo" obligatorio (no "De confianza")
+  - Variables de entorno con instrucciones explícitas de comillas simples para JSON
+  - Routine 5 (Metricas Semanal) documentada
+  - Tabla troubleshooting expandida a 9 síntomas (de 5 originales)
+  - Refleja la realidad operativa de hoy, no el plan original pre-fixes
+
+  **C. `_planning/PASO_JOSE_ENV_VARS.md` → `_archivo/PASO_JOSE_ENV_VARS_2026-05-12.md`**:
+  - Documento obsoleto (eran las instrucciones para que Jose configurara env vars
+    manualmente, ya hecho via Playwright en sesión migración). Movido a _archivo
+    para conservar traza histórica.
+
+  **D. `bash run_metricas.sh 7` validación local**:
+  - Script funciona, exit 0, reporte generado
+  - Pero **descubre limitación arquitectural**: filesystem cloud es efímero,
+    los `_logs/pipeline_davivienda_*.json` se pierden entre routines. Resultado:
+    Routine 5 en cloud verá siempre 0 archivos.
+  - Documentado como **B12** en `_planning/OLA_3_PLAN.md` con 4 opciones de fix
+    (commit git / upload Drive / Sheets / Routine 5 ejecuta pipeline). Opción B
+    recomendada. No urgente — disparador: 3+ semanas sin métricas.
+
+  **B. Auditoría `sprint_1/proponedor_plazos.py` (988 líneas)**:
+  - 8 magic numbers refactorizados a `config_reglas.py`:
+    | Antes hardcoded | Después constante config_reglas |
+    |---|---|
+    | `0.39 if es_vis else 0.29` | `RATIO_VIS if es_vis else RATIO_NO_VIS` |
+    | `* 1.10` (factibilidad) | `* TOPE_INGRESOS_FACTOR` |
+    | `100_000.0 if saldo < 300_000_000.0 else 200_000.0` | `PISO_ABONO_SALDO_BAJO if saldo < SALDO_THRESHOLD_TIER else PISO_ABONO_SALDO_ALTO` |
+    | `[100_000, 200_000, 300_000, 400_000, 500_000, 600_000]` (serie default) | `[_S, 2*_S, ..., 6*_S]` con `_S = SALTO_ABONO_SERIE` (NUEVA) |
+    | `shift += 100_000` | `shift += SALTO_ABONO_SERIE` |
+    | `tope_factor: float = 1.10` (default param) | `tope_factor: float = TOPE_INGRESOS_FACTOR` |
+  - 6 occurencias en `_proponer_por_saltos_100k`, 2 en `_proponer_mixto_viable`,
+    2 en `_plazo_min_factible`, 1 en `_proponer_por_ingresos` (legacy).
+  - Nueva constante `SALTO_ABONO_SERIE = 100_000.0` en `config_reglas.py`.
+  - Función legacy `_proponer_por_ingresos`: refactorizada también + nota en
+    docstring marcándola como legado (consistente con docstring del módulo).
+
+  **Tests post:**
+  - `test_fase2.py` 16/16 PASS ✅
+  - `pytest sprint_1/tests/` 50/50 PASS ✅
+  - `maintenance --dry-run` anom_drift = 0 ✅
+
+  **Bumps de versión:**
+  - MASTER_RULES.md v3.5 → v3.6
+  - ESTADO_PROYECTO.md §0 alineado a v3.6 (STEP 8 detectó el drift y se fixeó)
+
 - **[2026-05-12 MIGRATION COMPLETE] Cloud Routines E2E funcional tras 6 fixes de infraestructura:**
 
   **Resultado smoke test #7:** Pipeline AM ejecutado en cloud con 6 clientes pendientes:

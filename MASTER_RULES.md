@@ -1,7 +1,7 @@
 # MASTER_RULES — MejorAhora SAS · Reglas Generales del Proyecto
 
-**Versión:** 3.5
-**Última revisión:** 2026-05-12 (Sesión nocturna parte 2: auditoría hubspot_client.py + validadores M1/M2 + B5 metricas como Cloud Routine. 9 constantes HubSpot centralizadas, 1 anti-patrón except-pass eliminado, 8 magic numbers M1/M2 → config_reglas, dead var en M2 removida, B7 check añadido, run_metricas.sh creado, Routine 5 documentada.)
+**Versión:** 3.6
+**Última revisión:** 2026-05-12 (Sesión Cloud Routines E2E + auditoría proponedor_plazos.py. 6 fixes de infraestructura cloud documentados (PEP 668, --ignore-installed, HTTPLIB2_CA_CERTS shell-level, SSL CA bundle, network "Completo"). cloud_routines_setup.md v2.0 con troubleshooting actualizado. proponedor_plazos.py: 8 magic numbers refactorizados a config_reglas (RATIO_VIS/_NO_VIS, TOPE_INGRESOS_FACTOR, PISO_ABONO_*, SALDO_THRESHOLD_TIER, SALTO_ABONO_SERIE). B12 (persistencia logs JSON cloud) añadido al plan OLA 3.)
 **Mantenido por:** Ciclo mantenimiento 12h + actualizaciones puntuales (ver §19)
 
 > **ESTE ES EL ARCHIVO MAESTRO GENERAL DEL PROYECTO.**
@@ -513,5 +513,5 @@ Instrucción:
 
 ---
 
-**FIN MASTER_RULES v3.5**
+**FIN MASTER_RULES v3.6**
 **Próxima revisión:** cuando se sume otro banco o cambie política transversal.
