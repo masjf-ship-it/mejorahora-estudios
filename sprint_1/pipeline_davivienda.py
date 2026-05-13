@@ -89,7 +89,16 @@ BANCO = "DAVIVIENDA"
 # 2026-04-23 (Jose): agregado 571 como hipotecario tras caso Karen Tatiana Capera
 # (credito 571616690012705-4 verificado como hipotecario normal Davivienda).
 # 2026-05-07: deduplicado — antes estos literals vivian aqui Y en config_reglas.
-from config_reglas import PREFIJOS_HIPOTECARIO, PREFIJOS_LEASING  # noqa: F401
+# 2026-05-12: agregadas tolerancias R-DVV-06 G1/G2/G3 (antes hardcoded en funcion).
+from config_reglas import (
+    PREFIJOS_HIPOTECARIO,
+    PREFIJOS_LEASING,  # noqa: F401
+    TOLERANCIA_G1_CUOTA_DUPLICADA,
+    UMBRAL_G2_DISCREPANCIA_SEGUROS,
+    TOLERANCIA_G3_SUMA_DUPLICADA,
+    TOLERANCIA_DIF_SIMULA,
+    verify_pesos_template,
+)
 
 LOG_DIR = PROJECT_ROOT / "_logs"
 LOG_DIR.mkdir(exist_ok=True)
@@ -586,7 +595,7 @@ def construir_datos(pdf: dict, hs: dict, staging_row: dict, reg: dict = None) ->
     seguros_aplicados = seg_vida + seg_inc + seg_ter
     suma_aplicada = seguros_aplicados + cap_mes + int_mes
     g1 = (cuota > 0 and total_aplicado > 0
-          and abs(total_aplicado - 2.0 * cuota) / cuota < 0.05)
+          and abs(total_aplicado - 2.0 * cuota) / cuota < TOLERANCIA_G1_CUOTA_DUPLICADA)
     # G2 refinado (Jose retro 2026-04-24, caso Karen Tatiana false positive):
     # solo dispara si seg_vida APLICADO > 0. Si vida=0 con incendio>0, casi
     # seguro Vision no extrajo vida -> NO override (M1 nuevo lo bloqueara).
@@ -594,9 +603,9 @@ def construir_datos(pdf: dict, hs: dict, staging_row: dict, reg: dict = None) ->
     # discrepancia viene de extraccion incompleta, no de duplicacion real.
     g2 = (seguros_inferior > 0 and seguros_aplicados > 0
           and seg_vida > 0
-          and abs(seguros_aplicados - seguros_inferior) > 10_000)
+          and abs(seguros_aplicados - seguros_inferior) > UMBRAL_G2_DISCREPANCIA_SEGUROS)
     g3 = (cuota > 0 and suma_aplicada > 0
-          and abs(suma_aplicada - 2.0 * cuota) / cuota < 0.10)
+          and abs(suma_aplicada - 2.0 * cuota) / cuota < TOLERANCIA_G3_SUMA_DUPLICADA)
     if g1 or g2 or g3:
         if seguros_inferior > 0:
             seg_final = seguros_inferior
@@ -969,8 +978,8 @@ def procesar_cliente(cfg, gc, drive, hs, ws_staging, idx, row: dict, dry_run: bo
         # P5 retro 2026-04-24: validar DIF.SIMULA post-9.3 contra ±$70k.
         # Si excede, marca REVISION_MANUAL aunque SUMA CUOTA esté OK
         # (atrapa casos como Gilma con DIF.SIMULA -$13.9M y SUMA OK).
+        # 2026-05-12: TOLERANCIA_DIF_SIMULA importado a top-level (era inline).
         try:
-            from config_reglas import TOLERANCIA_DIF_SIMULA
             seg_total = (datos.seguro_vida + datos.seguro_incendio
                          + datos.seguro_terremoto)
             cap_sim, int_sim = _capital_intereses_simulador(
@@ -1136,7 +1145,7 @@ def main():
 
     # Integridad PESOS.xlsx: bloquea ejecucion si el template fue alterado fuera
     # del flujo de control (ver config_reglas.PESOS_TEMPLATE_SHA256).
-    from config_reglas import verify_pesos_template
+    # 2026-05-12: verify_pesos_template importado a top-level (era inline).
     ok_template, msg_template = verify_pesos_template(PROJECT_ROOT)
     print(f"[pipeline_davivienda] {msg_template}")
     if not ok_template:

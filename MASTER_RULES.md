@@ -1,7 +1,7 @@
 # MASTER_RULES — MejorAhora SAS · Reglas Generales del Proyecto
 
-**Versión:** 3.6
-**Última revisión:** 2026-05-12 (Sesión Cloud Routines E2E + auditoría proponedor_plazos.py. 6 fixes de infraestructura cloud documentados (PEP 668, --ignore-installed, HTTPLIB2_CA_CERTS shell-level, SSL CA bundle, network "Completo"). cloud_routines_setup.md v2.0 con troubleshooting actualizado. proponedor_plazos.py: 8 magic numbers refactorizados a config_reglas (RATIO_VIS/_NO_VIS, TOPE_INGRESOS_FACTOR, PISO_ABONO_*, SALDO_THRESHOLD_TIER, SALTO_ABONO_SERIE). B12 (persistencia logs JSON cloud) añadido al plan OLA 3.)
+**Versión:** 3.7
+**Última revisión:** 2026-05-12 (Sesión día 1 cloud — auditorías extract_davivienda_pdf.py + pipeline_davivienda.py. Bug latente fixeado: `main()` llamaba función inexistente `format_as_csv_row` (era `datos_a_csv_row`); CLI nunca había funcionado. Dead code eliminado: `_es_tasa` definida pero nunca llamada. Magic numbers refactorizados: `_MIN_SEGURO_VIDA_PESOS = 100` en extract, `TOLERANCIA_G1/G3` + `UMBRAL_G2` + `TOLERANCIA_DIF_SIMULA` + `verify_pesos_template` consolidados al top-level import en pipeline (3 inline imports eliminados).)
 **Mantenido por:** Ciclo mantenimiento 12h + actualizaciones puntuales (ver §19)
 
 > **ESTE ES EL ARCHIVO MAESTRO GENERAL DEL PROYECTO.**
@@ -513,5 +513,5 @@ Instrucción:
 
 ---
 
-**FIN MASTER_RULES v3.6**
+**FIN MASTER_RULES v3.7**
 **Próxima revisión:** cuando se sume otro banco o cambie política transversal.

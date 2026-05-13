@@ -253,11 +253,12 @@ def parse_davivienda_pdf(pdf_path: str, cedula_fallback: str = "") -> dict:
             return float(s.replace(",", "."))
         return float(s)
 
-    def _es_tasa(raw: str) -> bool:
-        """True si el string parece una tasa/porcentaje (< 1 con coma decimal)."""
-        v = _peso_col(raw)
-        # Tasas mensuales de seguros tipicamente entre 0.001 y 0.9
-        return v < 1.0
+    # Umbral pesos vs tasa: cualquier valor >= esto se considera "monto en pesos"
+    # (no una tasa). Tasas mensuales de seguros Davivienda van de 0.001 a 0.9
+    # (~1% mensual max). Seguros aplicados en pesos van desde ~$5,000 hasta
+    # cientos de miles. El umbral $100 deja un margen amplio entre ambos
+    # ordenes de magnitud.
+    _MIN_SEGURO_VIDA_PESOS = 100
 
     def _extraer_seguro_vida(texto_: str) -> float:
         # R-DVV-15: "Tasa Seguro de Vida 0,02294" aparece ANTES de
@@ -265,7 +266,7 @@ def parse_davivienda_pdf(pdf_path: str, cedula_fallback: str = "") -> dict:
         # re.search encuentra la primera ocurrencia (la tasa), que es < 100,
         # y para ahi sin intentar la siguiente (el monto).
         # Solucion: re.finditer sobre TODAS las ocurrencias; retornar la primera
-        # cuyo valor (via _peso_col) sea >= 100 pesos.
+        # cuyo valor (via _peso_col) sea >= _MIN_SEGURO_VIDA_PESOS.
         # Patron A: uno o dos numeros tras "Seguro de Vida" (misma linea)
         for m in re.finditer(
             r"Seguro\s+de\s+Vida\s+\$?\s*([\d.,]+)(?:\s+\$?\s*([\d.,]+))?",
@@ -274,11 +275,11 @@ def parse_davivienda_pdf(pdf_path: str, cedula_fallback: str = "") -> dict:
             raw1 = m.group(1)
             raw2 = m.group(2)
             v1 = _peso_col(raw1)
-            if v1 >= 100:
+            if v1 >= _MIN_SEGURO_VIDA_PESOS:
                 return v1
             if raw2:
                 v2 = _peso_col(raw2)
-                if v2 >= 100:
+                if v2 >= _MIN_SEGURO_VIDA_PESOS:
                     return v2
         # Patron B: valor en linea siguiente (label sola, monto abajo)
         m3 = re.search(
@@ -287,12 +288,12 @@ def parse_davivienda_pdf(pdf_path: str, cedula_fallback: str = "") -> dict:
         )
         if m3:
             v = _peso_col(m3.group(1))
-            if v >= 100:
+            if v >= _MIN_SEGURO_VIDA_PESOS:
                 return v
         # Patron C: "Seguro Vida" abreviado — misma logica con finditer
         for m in re.finditer(r"Seguro\s+Vida\s+([\d.,]+)", texto_, re.IGNORECASE):
             v = _peso_col(m.group(1))
-            if v >= 100:
+            if v >= _MIN_SEGURO_VIDA_PESOS:
                 return v
         return 0.0
     datos["seguro_vida"] = _extraer_seguro_vida(texto)
@@ -447,7 +448,11 @@ def main():
     pdf_path = sys.argv[1]
     cedula = sys.argv[2] if len(sys.argv) > 2 else ""
     result = parse_davivienda_pdf(pdf_path, cedula_fallback=cedula)
-    print(format_as_csv_row(result))
+    # FIX 2026-05-12: era format_as_csv_row (NoMBRE inexistente) — la funcion
+    # publica es datos_a_csv_row. El CLI debio estar roto desde el inicio del
+    # modulo; no se detecto porque el pipeline en producción usa parse_davivienda_pdf
+    # directo (no este wrapper) y nadie corrio el CLI puro.
+    print(datos_a_csv_row(result))
 
 
 if __name__ == "__main__":

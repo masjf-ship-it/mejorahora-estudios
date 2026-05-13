@@ -214,6 +214,51 @@ Para cambios que implican borrar regla de doc canónico, registrar aquí la regl
 
 ## 2026-05-12
 
+- **[2026-05-12 SESION DIA 1 CLOUD parte 2] — audit extract + pipeline + bug latente fixeado:**
+
+  Continuación del trabajo paralelo mientras Jose revisa Excel. Tareas E y F
+  (auditorías más profundas, riesgo controlado por tests).
+
+  **E. Auditoría `sprint_1/extract_davivienda_pdf.py` (454 → 453 líneas):**
+
+  - **BUG LATENTE FIXEADO**: `main()` línea 450 llamaba `format_as_csv_row(result)`
+    pero la función real se llama `datos_a_csv_row()`. El CLI puro
+    (`py extract_davivienda_pdf.py <pdf>`) habría fallado con `NameError`.
+    No se detectó antes porque el pipeline en producción usa
+    `parse_davivienda_pdf` directo (no este wrapper) y nadie corrió el CLI
+    desde que se escribió. Ahora corregido.
+  - **DEAD CODE eliminado**: función `_es_tasa(raw)` (líneas 256-260) definida
+    pero NUNCA llamada. Grep confirma 0 referencias en todo el repo. Removida.
+  - **Magic number documentado**: `>= 100` (umbral pesos vs tasa en
+    `_extraer_seguro_vida`) → constante local `_MIN_SEGURO_VIDA_PESOS = 100`
+    con comentario explicando el rango de magnitudes (tasas 0.001-0.9, montos
+    >= $100). 3 ocurrencias reemplazadas.
+
+  **F. Auditoría `sprint_1/pipeline_davivienda.py` (1187 líneas):**
+
+  - **3 magic numbers refactorizados a `config_reglas`** (R-DVV-06 G1/G2/G3):
+    - `0.05` → `TOLERANCIA_G1_CUOTA_DUPLICADA` (ratio cuota duplicada)
+    - `10_000` → `UMBRAL_G2_DISCREPANCIA_SEGUROS` (discrepancia $10k)
+    - `0.10` → `TOLERANCIA_G3_SUMA_DUPLICADA` (ratio suma duplicada)
+    - Las 3 ya existían en `config_reglas.py` pero estaban hardcoded inline.
+  - **2 inline imports consolidados al top-level**:
+    - `from config_reglas import TOLERANCIA_DIF_SIMULA` (línea 980, dentro de
+      try block) → top-level
+    - `from config_reglas import verify_pesos_template` (línea 1148, dentro
+      de `main()`) → top-level
+    - Ambos eran defensa innecesaria — `config_reglas` ya se importa al top
+      del módulo. Movidos para tener un único punto de import por módulo
+      (consistente con MASTER_RULES §17.3 política limpia).
+
+  **Tests post:**
+  - `test_fase2.py` 16/16 PASS ✅
+  - `pytest sprint_1/tests/` 50/50 PASS ✅
+  - `maintenance --dry-run` anom_drift = 0 ✅
+
+  **Bumps de versión:**
+  - MASTER_RULES.md v3.6 → v3.7
+  - ESTADO_PROYECTO.md §0 alineado a v3.7
+
 - **[2026-05-12 SESION DIA 1 CLOUD — trabajo paralelo mientras Jose revisa Excel:**
 
   Mientras Jose revisaba los 5 Excel generados anoche (post-smoke #7), Claude
