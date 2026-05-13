@@ -1,7 +1,7 @@
 # MASTER_RULES — MejorAhora SAS · Reglas Generales del Proyecto
 
-**Versión:** 3.8
-**Última revisión:** 2026-05-12 (Sesión día 1 cloud — audits adicionales G: reglas_negocio.py (RATIO_VIS/_NO_VIS duplicado eliminado — 0 importadores) + listar_pendientes_hoy.py (WORKSHEET_SRC/_DST consolidados desde config_reglas). Nueva constante: SHEET_PESTANA_REGISTROS. Patrón general: cualquier constante con 2+ definiciones se consolida a config_reglas como fuente única (anti-drift MASTER_RULES §17.3).)
+**Versión:** 3.9
+**Última revisión:** 2026-05-12 (Sesión día 1 cloud — audit H maintenance.py: `import re` movido al top del módulo (era inline dentro de check_doc_code_drift); STEP 8 drift checker expandido con check 5b para `RETENTION_PIPELINE_LOGS_DAYS` (antes solo verificaba `RETENTION_N`, ahora también el de logs pipeline JSON contra §15.4). Mejora la cobertura del anti-drift sin tocar producción.)
 **Mantenido por:** Ciclo mantenimiento 12h + actualizaciones puntuales (ver §19)
 
 > **ESTE ES EL ARCHIVO MAESTRO GENERAL DEL PROYECTO.**
@@ -513,5 +513,5 @@ Instrucción:
 
 ---
 
-**FIN MASTER_RULES v3.8**
+**FIN MASTER_RULES v3.9**
 **Próxima revisión:** cuando se sume otro banco o cambie política transversal.

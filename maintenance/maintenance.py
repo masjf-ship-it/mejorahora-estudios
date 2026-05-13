@@ -38,6 +38,7 @@ import configparser
 import datetime as dt
 import fnmatch
 import os
+import re
 import shutil
 import sys
 from pathlib import Path
@@ -365,7 +366,9 @@ def check_doc_code_drift() -> list[str]:
         except Exception:
             return ""
 
-    import re as _re
+    # 2026-05-12: `import re` ahora vive al top del modulo. Mantenemos alias
+    # `_re` por consistencia con el resto del bloque (cambio interno minimo).
+    _re = re
 
     # 1) Header vs footer en MASTER_RULES.md
     mr_path = PROJECT_ROOT / "MASTER_RULES.md"
@@ -429,6 +432,18 @@ def check_doc_code_drift() -> list[str]:
                 issues.append(
                     f"Retencion drift: codigo RETENTION_N={RETENTION_N} != "
                     f"MASTER_RULES §17.11 cita {doc_n}"
+                )
+        # 5b) RETENTION_PIPELINE_LOGS_DAYS consistente con doc
+        # MASTER_RULES §15.4 cita "logs pipeline JSON **N dias por fecha del archivo**"
+        m_pl = _re.search(
+            r"logs\s+pipeline\s+JSON\s*\*?\*?(\d+)\s*d[ií]as", mr_text, _re.IGNORECASE
+        )
+        if m_pl:
+            doc_pl = int(m_pl.group(1))
+            if doc_pl != RETENTION_PIPELINE_LOGS_DAYS:
+                issues.append(
+                    f"Retencion drift: codigo RETENTION_PIPELINE_LOGS_DAYS="
+                    f"{RETENTION_PIPELINE_LOGS_DAYS} != MASTER_RULES §15.4 cita {doc_pl}"
                 )
 
     # 6) Referencias a archivos canonicos inexistentes desde MASTER_RULES

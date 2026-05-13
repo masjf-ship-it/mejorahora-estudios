@@ -214,6 +214,30 @@ Para cambios que implican borrar regla de doc canónico, registrar aquí la regl
 
 ## 2026-05-12
 
+- **[2026-05-12 SESION DIA 1 CLOUD parte 4] — audit maintenance.py: STEP 8 drift expandido:**
+
+  **H. `maintenance/maintenance.py` (576 → 578 líneas):**
+
+  - **`import re` movido al top del módulo** — antes vivía inline dentro de
+    `check_doc_code_drift()` como `import re as _re`. Patrón anti-idiomático.
+    Solucionado: top-level `import re` + alias local `_re = re` para mantener
+    el resto del bloque sin cambios (minimal diff).
+  - **STEP 8 drift checker expandido — nuevo check 5b**:
+    El checker antes solo validaba `RETENTION_N` contra MASTER_RULES §17.11.
+    Ahora también valida `RETENTION_PIPELINE_LOGS_DAYS` contra §15.4 ("logs
+    pipeline JSON N días por fecha del archivo"). Si el código tiene
+    `RETENTION_PIPELINE_LOGS_DAYS = 30` y el doc dice "10 días", se reporta
+    drift. Cobertura del anti-drift expandida sin tocar producción.
+
+  **Tests post:**
+  - `test_fase2.py` 16/16 PASS ✅
+  - `pytest sprint_1/tests/` 50/50 PASS ✅
+  - `maintenance --dry-run` anom_drift = 0 ✅
+
+  **Bumps de versión:**
+  - MASTER_RULES.md v3.8 → v3.9
+  - ESTADO_PROYECTO.md §0 alineado
+
 - **[2026-05-12 SESION DIA 1 CLOUD parte 3] — audit reglas_negocio + listar_pendientes (anti-drift):**
 
   Audits adicionales mientras Jose revisa los 5 Excel. Patrón: cualquier
