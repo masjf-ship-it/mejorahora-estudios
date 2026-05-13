@@ -138,6 +138,10 @@ DRIVE_FOLDER_ANALISTAS_RW = "1UVsQtyzQHEpfRlcjUrq8gBsXgEqABoym"  # Excel destino
 ESTADOS_SKIP_DEFAULT = ("excel generado", "procesado", "completado", "realizado")
 # NOTA: "pendiente frech" YA NO bloquea (R-DVV-09 leasing=hipotecario)
 
+# Pestanas (worksheets) de la Sheet canonica
+SHEET_PESTANA_REGISTROS = "REGISTROS"  # fuente de verdad (solo lectura, manual Yenny)
+# SHEET_PESTANA_DESTINO ya definida arriba ("STAGING") — alias para claridad
+
 # ============================================================
 # TEMPLATE PESOS.xlsx — integridad
 # ============================================================

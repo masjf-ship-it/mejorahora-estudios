@@ -52,9 +52,10 @@ BANCOS_SIN_INGRESOS_REQUERIDOS = {
 # ============================================================
 # RATIOS CUOTA / INGRESOS
 # ============================================================
-
-RATIO_VIS = 0.39      # 39% para creditos VIS (Vivienda Interes Social)
-RATIO_NO_VIS = 0.29   # 29% default
+# 2026-05-12: RATIO_VIS y RATIO_NO_VIS REMOVIDAS de aqui — eran duplicado
+# silencioso de config_reglas.py (drift risk MASTER_RULES §17.3). Grep
+# confirmo 0 importadores desde reglas_negocio. Fuente unica ahora:
+#   from config_reglas import RATIO_VIS, RATIO_NO_VIS
 
 MARCADORES_VIS = {
     "VIS",

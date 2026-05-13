@@ -214,6 +214,33 @@ Para cambios que implican borrar regla de doc canónico, registrar aquí la regl
 
 ## 2026-05-12
 
+- **[2026-05-12 SESION DIA 1 CLOUD parte 3] — audit reglas_negocio + listar_pendientes (anti-drift):**
+
+  Audits adicionales mientras Jose revisa los 5 Excel. Patrón: cualquier
+  constante con 2+ definiciones se consolida a `config_reglas` como fuente única.
+
+  **G1. `sprint_1/reglas_negocio.py`:**
+  - 🚨 **Duplicación silenciosa eliminada**: `RATIO_VIS = 0.39` y `RATIO_NO_VIS = 0.29`
+    estaban definidas TANTO aquí como en `config_reglas.py`. Grep confirmó **0 importadores**
+    desde reglas_negocio (las usaba indirectamente, pero todos los consumidores ya
+    importaban desde config_reglas). Eliminadas en reglas_negocio para evitar drift
+    futuro (MASTER_RULES §17.3).
+
+  **G2. `sprint_1/listar_pendientes_hoy.py` (PASO 1 del pipeline diario):**
+  - `WORKSHEET_DST = "STAGING"` → `SHEET_PESTANA_DESTINO` (ya existía en config_reglas)
+  - `WORKSHEET_SRC = "REGISTROS"` → nueva constante `SHEET_PESTANA_REGISTROS`
+    agregada a `config_reglas.py`
+  - Ambos importados con `as` para mantener nombres internos retrocompatibles.
+
+  **Tests post:**
+  - `test_fase2.py` 16/16 PASS ✅
+  - `pytest sprint_1/tests/` 50/50 PASS ✅
+  - `maintenance --dry-run` anom_drift = 0 ✅
+
+  **Bumps de versión:**
+  - MASTER_RULES.md v3.7 → v3.8
+  - ESTADO_PROYECTO.md §0 alineado
+
 - **[2026-05-12 SESION DIA 1 CLOUD parte 2] — audit extract + pipeline + bug latente fixeado:**
 
   Continuación del trabajo paralelo mientras Jose revisa Excel. Tareas E y F

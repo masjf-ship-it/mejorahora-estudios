@@ -1,7 +1,7 @@
 # MASTER_RULES — MejorAhora SAS · Reglas Generales del Proyecto
 
-**Versión:** 3.7
-**Última revisión:** 2026-05-12 (Sesión día 1 cloud — auditorías extract_davivienda_pdf.py + pipeline_davivienda.py. Bug latente fixeado: `main()` llamaba función inexistente `format_as_csv_row` (era `datos_a_csv_row`); CLI nunca había funcionado. Dead code eliminado: `_es_tasa` definida pero nunca llamada. Magic numbers refactorizados: `_MIN_SEGURO_VIDA_PESOS = 100` en extract, `TOLERANCIA_G1/G3` + `UMBRAL_G2` + `TOLERANCIA_DIF_SIMULA` + `verify_pesos_template` consolidados al top-level import en pipeline (3 inline imports eliminados).)
+**Versión:** 3.8
+**Última revisión:** 2026-05-12 (Sesión día 1 cloud — audits adicionales G: reglas_negocio.py (RATIO_VIS/_NO_VIS duplicado eliminado — 0 importadores) + listar_pendientes_hoy.py (WORKSHEET_SRC/_DST consolidados desde config_reglas). Nueva constante: SHEET_PESTANA_REGISTROS. Patrón general: cualquier constante con 2+ definiciones se consolida a config_reglas como fuente única (anti-drift MASTER_RULES §17.3).)
 **Mantenido por:** Ciclo mantenimiento 12h + actualizaciones puntuales (ver §19)
 
 > **ESTE ES EL ARCHIVO MAESTRO GENERAL DEL PROYECTO.**
@@ -513,5 +513,5 @@ Instrucción:
 
 ---
 
-**FIN MASTER_RULES v3.7**
+**FIN MASTER_RULES v3.8**
 **Próxima revisión:** cuando se sume otro banco o cambie política transversal.
