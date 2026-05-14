@@ -1,5 +1,5 @@
 # MOM_DAVIVIENDA — Master Operating Manual · Banco Davivienda
-**Versión:** 1.6 · 2026-05-07 (R-DVV-16 documentada — drift detectado en auditoría: estaba en código y CHANGELOG pero faltaba en MOM)
+**Versión:** 1.7 · 2026-05-14 (R-DVV-11 evoluciona: auto-retry con Gemini + genera Excel siempre, no aborta. Jose feedback caso ALVARO MAHECHA donde pdfplumber leyó mal plazo_pendiente.)
 **Específico de Davivienda. Para reglas generales del proyecto: ver `MASTER_RULES.md`.**
 
 > **Precedencia:** banco-específico (este archivo) gana sobre general (MASTER_RULES) en caso de contradicción.
@@ -108,8 +108,26 @@ Nota CRM en columna L STAGING: "Proyección a 6ª cuota — política banco. Cli
 ### R-DVV-10 — M1 bloquea seguro_vida=0 con incendio>0
 Si Vision devuelve `seguro_vida=0 AND seguro_incendio>0` → M1 ERROR → REVISION_MANUAL. En extractos hipotecarios casi siempre existe seguro de vida (obligatorio).
 
-### R-DVV-11 — DIF.SIMULA tolerancia ±$70k post-9.3
-Después de Regla 9.3, recalcular DIF.SIMULA. Si `|DIF.SIMULA| > $70k` → REVISION_MANUAL aunque SUMA CUOTA esté OK. Atrapa casos como Gilma (cuota incoherente con plazo pendiente).
+### R-DVV-11 — DIF.SIMULA tolerancia ±$70k post-9.3 (con auto-retry Gemini)
+Después de Regla 9.3, recalcular DIF.SIMULA. Si `|DIF.SIMULA| > $70k`:
+
+**2026-05-14 (Jose feedback caso ALVARO MAHECHA):** el comportamiento cambió de
+"abortar sin Excel" a "auto-retry con Gemini + generar Excel siempre":
+
+1. **Auto-retry con Gemini Vision** si el extractor inicial fue `pdfplumber`.
+   Motivo: pdfplumber a veces lee mal `plazo_pendiente` (sin dejarlo vacío) y el
+   fallback automático de Vision NO se activaba. Ahora cuando R-DVV-11 dispara,
+   el pipeline re-extrae con Gemini, re-aplica Regla 9.3 y recalcula DIF.SIMULA.
+2. **Si Gemini lo arregla** → procesar como caso OK normal. Estado final en GENERADOS:
+   `"pre-generado, gemini"`. Excel se genera limpio.
+3. **Si Gemini NO lo arregla** (o ya era Gemini desde el inicio) → **NO abortar**.
+   El Excel se genera igual con los datos finales (mejores disponibles). Estado en
+   GENERADOS: `"REVISION_MANUAL: DIF.SIMULA $X (gemini)"`. El analista 1 abre el
+   Excel, lo compara con el extracto, **corrige in-place** los datos incorrectos
+   (ej. plazo) y guarda. NO se regenera el Excel — el analista entrega el corregido.
+
+Atrapa casos como Gilma (cuota incoherente con plazo pendiente) y ALVARO MAHECHA
+(plazo_pend leído mal por pdfplumber, DIF.SIMULA -$13.4M).
 
 ### R-DVV-12 — HubSpot genérico repetido → REGISTROS
 Pre-pasada `detectar_hubspot_genericos(umbral=3)`: si ≥3 clientes en la corrida tienen misma firma `(consultor, actividad, ingresos)` desde HubSpot → marcar firmas genéricas. Para esos clientes, ignorar `consultor/actividad/ingresos/abono` de HubSpot y caer a REGISTROS. Mantener `cc/email/phone/contact_id` de HubSpot.
@@ -352,5 +370,5 @@ py sprint_1\test_fase2.py > diag_fase2.txt 2>&1
 
 ---
 
-**FIN MOM_DAVIVIENDA v1.6**
+**FIN MOM_DAVIVIENDA v1.7**
 **Próxima revisión:** cuando aparezca caso nuevo no cubierto por R-DVV-01..18 o cambie política Davivienda.

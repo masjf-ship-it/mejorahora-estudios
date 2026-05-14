@@ -65,7 +65,7 @@ MESES_ES = {
 
 ESTADOS_VALIDOS = {"pendiente", "pte validar yenny", "mora"}
 # Estados EXCLUIDOS del pipeline (estudio ya realizado o flujo distinto):
-#   - "Pendiente NOTA consultor" = estudio hecho, solo falta nota en CRM (Yenny)
+#   - "Pendiente NOTA consultor" = estudio hecho, solo falta nota en CRM (analista 1)
 ESTADOS_EXCLUIDOS = {"pendiente nota consultor", "realizado", "cancelado"}
 BANCOS_VALIDOS = {"davivienda", "caja social", "bancolombia"}
 # Moneda/amortizacion — solo PESOS (Jose 2026-04-21): UVR no se procesa por ahora.
@@ -213,7 +213,7 @@ def publicar_en_staging(sh, pendientes: list):
     """Appendea pendientes en STAGING respetando el esquema existente.
 
     Mapea cada campo por NOMBRE de columna (no por posicion) al header real.
-    NO hace clear() — preserva filas que ya Yenny tenga en proceso.
+    NO hace clear() — preserva filas que ya el analista 1 tenga en proceso.
     Escribe solo en la primera fila vacia (NOMBRE CLIENTE sin contenido).
     """
     ws = sh.worksheet(WORKSHEET_DST)

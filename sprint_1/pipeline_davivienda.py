@@ -120,11 +120,14 @@ def _norm(s: str) -> str:
 
 
 def _abrir_staging(gc):
+    # 2026-05-14: pestana renombrada STAGING -> GENERADOS (config_reglas).
+    # La funcion conserva el nombre _abrir_staging por compatibilidad interna.
+    from config_reglas import SHEET_PESTANA_DESTINO
     sh = gc.open_by_key(drive_client.SHEET_ID_BD)
-    ws = sh.worksheet("STAGING")
+    ws = sh.worksheet(SHEET_PESTANA_DESTINO)
     rows = ws.get_all_values()
     if not rows:
-        raise RuntimeError("STAGING vacia (ni header).")
+        raise RuntimeError(f"{SHEET_PESTANA_DESTINO} vacia (ni header).")
     header = rows[0]
     body = rows[1:]
     idx = {}
@@ -264,20 +267,34 @@ def clasificar_credito(credito: str) -> str:
 # ============================================================
 
 def extraer_pdf_hibrido(pdf_path: Path, cedula_fallback: str = "") -> dict:
-    """Intenta pdfplumber, si faltan campos criticos cae a Vision."""
+    """Intenta pdfplumber, si faltan campos criticos cae a Vision.
+
+    Trackea cual extractor produjo los datos finales en `datos["_extractor_uso"]`:
+      - "pdfplumber" : pdfplumber solo, sin Vision
+      - "gemini"     : Vision intervino (fallback total o por campos vacios)
+
+    Este tracking se usa rio abajo para:
+      - Anotar el estado en GENERADOS (col G) como "pre-generado, gemini"
+      - Decidir si auto-retry con Vision tiene sentido cuando R-DVV-11 dispara
+    """
+    extractor_uso = "pdfplumber"
     try:
         datos = parse_davivienda_pdf(str(pdf_path), cedula_fallback=cedula_fallback)
     except Exception as e:
         datos = {}
         print(f"  [extract] pdfplumber fallo: {e}. Usando Vision directo.")
+        extractor_uso = "gemini"  # fallback total
 
     if vision_extractor.necesita_fallback(datos):
         print("  [extract] Campos criticos vacios -> Claude Vision fallback")
         try:
             datos = vision_extractor.extraer_con_vision(pdf_path, base=datos)
+            extractor_uso = "gemini"
         except Exception as e:
             print(f"  [extract] Vision fallback fallo: {e}")
             traceback.print_exc()
+    if isinstance(datos, dict):
+        datos["_extractor_uso"] = extractor_uso
     return datos
 
 
@@ -896,6 +913,12 @@ def procesar_cliente(cfg, gc, drive, hs, ws_staging, idx, row: dict, dry_run: bo
         # Step 5: Extract (pdfplumber + vision fallback)
         cc_para_parser = ccs_candidatas[0] if ccs_candidatas else ""
         datos_pdf = extraer_pdf_hibrido(pdf_usable, cedula_fallback=cc_para_parser)
+        # 2026-05-14: tracking del extractor usado, se anota en estado GENERADOS
+        # y se usa para decidir auto-retry con Vision en R-DVV-11.
+        extractor_uso = datos_pdf.get("_extractor_uso", "pdfplumber") if isinstance(datos_pdf, dict) else "pdfplumber"
+        # Si en algun checkpoint se decide REVISION_MANUAL, se setea este string;
+        # el Excel se genera igual y el estado final lo refleja.
+        estado_revision_manual = None
 
         # Hard blockers: ILEGIBLE / INCOMPLETO
         estado_extracto, vacios = _clasificar_extracto(datos_pdf)
@@ -976,9 +999,16 @@ def procesar_cliente(cfg, gc, drive, hs, ws_staging, idx, row: dict, dry_run: bo
             print(f"    {n}")
 
         # P5 retro 2026-04-24: validar DIF.SIMULA post-9.3 contra ±$70k.
-        # Si excede, marca REVISION_MANUAL aunque SUMA CUOTA esté OK
-        # (atrapa casos como Gilma con DIF.SIMULA -$13.9M y SUMA OK).
-        # 2026-05-12: TOLERANCIA_DIF_SIMULA importado a top-level (era inline).
+        # 2026-05-14 (Jose feedback caso ALVARO MAHECHA): el flujo viejo abortaba
+        # el procesamiento (sin Excel). Ahora:
+        #   1. Si DIF.SIMULA fuera tolerancia Y extractor fue pdfplumber:
+        #      auto-retry con Gemini Vision (lee mejor plazo_pendiente, saldo, etc.)
+        #   2. Re-aplicar Regla 9.3 y recalcular DIF.SIMULA
+        #   3. Si Gemini lo arregla -> sigue normal, estado "pre-generado, gemini"
+        #   4. Si NO lo arregla (o ya era Gemini) -> NO aborta: marca el estado
+        #      `estado_revision_manual` y el Excel se genera igual (con datos
+        #      finales). El analista lo abre, corrige a mano, guarda.
+        # TOLERANCIA_DIF_SIMULA = ±$70k (config_reglas, MASTER_RULES §8.15).
         try:
             seg_total = (datos.seguro_vida + datos.seguro_incendio
                          + datos.seguro_terremoto)
@@ -987,15 +1017,76 @@ def procesar_cliente(cfg, gc, drive, hs, ws_staging, idx, row: dict, dry_run: bo
             dif_sim_final = datos.cuota_mensual - (cap_sim + int_sim + seg_total)
             if abs(dif_sim_final) > TOLERANCIA_DIF_SIMULA:
                 msg = (f"DIF.SIMULA fuera tolerancia: ${dif_sim_final:,.0f} "
-                       f"(|{abs(dif_sim_final):,.0f}| > ${TOLERANCIA_DIF_SIMULA:,.0f}). Plazo pendiente "
-                       f"vs cuota incoherente. REVISION_MANUAL.")
+                       f"(|{abs(dif_sim_final):,.0f}| > ${TOLERANCIA_DIF_SIMULA:,.0f}).")
                 print(f"  [DIF.SIMULA-CHECK] FAIL: {msg}")
-                resultado["detalle"] = f"DIF_SIMULA_FUERA_TOL: ${dif_sim_final:,.0f}"
-                resultado["ok"] = False
-                if not dry_run:
-                    _staging_update(ws_staging, row["row_idx"], idx,
-                                     "REVISION_MANUAL: DIF.SIMULA fuera tolerancia")
-                return resultado
+
+                # 2026-05-14: Auto-retry con Gemini si extractor fue pdfplumber.
+                retry_ok = False
+                if extractor_uso == "pdfplumber":
+                    try:
+                        print("  [retry-gemini] DIF.SIMULA fuera tol con pdfplumber. "
+                              "Intentando re-extraccion con Vision...")
+                        datos_g = vision_extractor.extraer_con_vision(pdf_usable, base={})
+                        # Mergear campos criticos al datos actual (DatosClienteExcel)
+                        cambios_aplicados = []
+                        for k_origen, attr_destino in [
+                            ("cuota_mensual", "cuota_mensual"),
+                            ("saldo_capital", "saldo_capital"),
+                            ("cuotas_pendientes", "plazo_pendiente"),
+                            ("plazo_inicial", "plazo_inicial"),
+                            ("tasa_cobrada", "tasa_ea"),
+                            ("seguro_vida", "seguro_vida"),
+                            ("seguro_incendio", "seguro_incendio"),
+                            ("seguro_terremoto", "seguro_terremoto"),
+                            ("abonos_capital", "capital_mensual"),
+                            ("intereses_corrientes", "interes_mensual"),
+                        ]:
+                            v_new = datos_g.get(k_origen)
+                            v_old = getattr(datos, attr_destino, None)
+                            if v_new not in (None, "", 0, 0.0) and v_new != v_old:
+                                setattr(datos, attr_destino, v_new)
+                                cambios_aplicados.append(
+                                    f"{attr_destino}: {v_old}->{v_new}")
+                        if cambios_aplicados:
+                            print(f"    [retry-gemini] cambios: "
+                                  f"{'; '.join(cambios_aplicados[:5])}"
+                                  f"{'...' if len(cambios_aplicados) > 5 else ''}")
+                        extractor_uso = "gemini"
+                        # Re-aplicar Regla 9.3 con datos actualizados
+                        for n in aplicar_regla_93_abono_extraordinario(datos):
+                            print(f"    [retry-9.3] {n}")
+                        # Recalcular DIF.SIMULA
+                        seg_total_r = (datos.seguro_vida + datos.seguro_incendio
+                                       + datos.seguro_terremoto)
+                        cap_sim_r, int_sim_r = _capital_intereses_simulador(
+                            datos.tasa_ea, datos.plazo_pendiente, datos.saldo_capital)
+                        dif_sim_retry = datos.cuota_mensual - (cap_sim_r + int_sim_r + seg_total_r)
+                        if abs(dif_sim_retry) <= TOLERANCIA_DIF_SIMULA:
+                            print(f"  [retry-gemini] OK: DIF.SIMULA ahora "
+                                  f"${dif_sim_retry:,.0f} dentro tolerancia")
+                            dif_sim_final = dif_sim_retry
+                            retry_ok = True
+                        else:
+                            print(f"  [retry-gemini] FAIL: DIF.SIMULA sigue "
+                                  f"${dif_sim_retry:,.0f} fuera tolerancia")
+                            dif_sim_final = dif_sim_retry
+                    except Exception as exc:
+                        print(f"  [retry-gemini] EXCEPCION: {exc}")
+
+                if not retry_ok:
+                    # NO aborta. Marca para estado final, sigue al PASO 7b/Excel.
+                    gemini_tag = " (gemini)" if extractor_uso == "gemini" else ""
+                    estado_revision_manual = (
+                        f"REVISION_MANUAL: DIF.SIMULA ${dif_sim_final:,.0f}{gemini_tag}"
+                    )
+                    resultado["detalle"] = f"DIF_SIMULA_FUERA_TOL: ${dif_sim_final:,.0f}"
+                    resultado.setdefault("notas_crm", []).append(
+                        f"REVISION_MANUAL: DIF.SIMULA ${dif_sim_final:,.0f} "
+                        f"fuera tolerancia ±$70k. Excel generado para revision "
+                        f"manual del analista (corregir in-place si aplica)."
+                    )
+                    print(f"  [DIF.SIMULA-CHECK] Excel se generara igual; "
+                          f"estado final: {estado_revision_manual}")
             else:
                 print(f"  [DIF.SIMULA-CHECK] OK: ${dif_sim_final:,.0f} dentro tolerancia ±$70k")
         except Exception as exc:
@@ -1104,15 +1195,29 @@ def procesar_cliente(cfg, gc, drive, hs, ws_staging, idx, row: dict, dry_run: bo
         link = uploaded.get("webViewLink", "")
         print(f"    uploaded id={uploaded.get('id')} link={link}")
 
-        # Step 10: Update STAGING (estado + link + nota_crm consolidada)
+        # Step 10: Update GENERADOS (estado + link + nota_crm consolidada)
+        # 2026-05-14 (Jose feedback): estado dinamico segun extractor + revision.
+        #   - "pre-generado"          : pdfplumber solo, sin alerta
+        #   - "pre-generado, gemini"  : Gemini intervino (fallback inicial o retry)
+        #   - "REVISION_MANUAL: DIF.SIMULA $X (gemini)" : R-DVV-11 disparo
+        # El analista revisa, corrige in-place el Excel, marca Estado=Excel generado.
+        if estado_revision_manual is not None:
+            estado_final_staging = estado_revision_manual
+        else:
+            tag_gemini = ", gemini" if extractor_uso == "gemini" else ""
+            estado_final_staging = f"pre-generado{tag_gemini}"
         notas_crm_final = " | ".join(resultado.get("notas_crm", [])).strip()
-        _staging_update(ws_staging, row["row_idx"], idx, "Excel generado",
+        _staging_update(ws_staging, row["row_idx"], idx, estado_final_staging,
                          link=link, nota_crm=notas_crm_final)
+        print(f"  [GENERADOS] estado={estado_final_staging!r}")
         if notas_crm_final:
-            print(f"  [STAGING] nota CRM escrita en columna L: {notas_crm_final[:120]}...")
+            print(f"  [GENERADOS] nota CRM escrita en columna L: {notas_crm_final[:120]}...")
 
+        # OK incluso si REVISION_MANUAL — el Excel se entrega al analista.
         resultado["ok"] = True
-        resultado["detalle"] = f"ok | link={link}"
+        resultado["detalle"] = (
+            estado_revision_manual or f"ok | link={link}"
+        )
         resultado["output"] = str(output)
         resultado["drive_link"] = link
     return resultado

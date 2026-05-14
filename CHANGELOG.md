@@ -212,6 +212,72 @@ Para cambios que implican borrar regla de doc canónico, registrar aquí la regl
 
 ---
 
+## 2026-05-14
+
+- **[2026-05-14 CAMBIO ESTRUCTURAL MAYOR — Jose feedback caso ALVARO MAHECHA]:**
+
+  Jose pidió cambio de proceso para casos REVISION_MANUAL (no se podía
+  diagnosticar sin Excel) y rebautizar STAGING→GENERADOS. Implementación E2E:
+
+  **1. R-DVV-11 evoluciona — auto-retry Gemini + Excel siempre**
+  - Antes: si DIF.SIMULA > ±$70k → abortar sin Excel, marca `REVISION_MANUAL`
+  - Ahora: si DIF.SIMULA > ±$70k:
+    - Si extractor fue `pdfplumber` → re-extraer con Gemini Vision, re-aplicar
+      Regla 9.3, recalcular DIF.SIMULA
+    - Si Gemini lo arregla → procesar normal, estado `pre-generado, gemini`
+    - Si Gemini NO lo arregla (o ya era Gemini) → **NO aborta**. Genera Excel
+      con datos finales. Estado: `REVISION_MANUAL: DIF.SIMULA $X (gemini)`
+  - Razón: caso ALVARO MAHECHA reveló que pdfplumber lee mal `plazo_pendiente`
+    sin dejarlo vacío → fallback automático NO se activaba → DIF.SIMULA -$13.4M
+    sin posibilidad de diagnóstico del analista 1.
+  - Workflow nuevo: analista 1 abre el Excel, compara con extracto, **corrige
+    in-place** los datos incorrectos y guarda. NO se regenera el Excel.
+
+  **2. Renombrar pestaña: `STAGING` → `GENERADOS`**
+  - `config_reglas.SHEET_PESTANA_DESTINO = "GENERADOS"` (antes `"STAGING"`)
+  - `automation/apps_script/staging_approval_workflow.gs` actualizado v3.0 → v3.1
+  - `pipeline_davivienda._abrir_staging()` lee de `SHEET_PESTANA_DESTINO`
+  - **Orden de despliegue crítico**: código primero (este commit), Sheet después
+    (Jose renombra manualmente). Al revés rompería los pipelines siguientes.
+
+  **3. Estados nuevos en columna G (GENERADOS)**
+  - `pre-generado`           : pdfplumber solo, sin alerta
+  - `pre-generado, gemini`   : Gemini intervino (fallback inicial O retry R-DVV-11)
+  - `REVISION_MANUAL: DIF.SIMULA $X (gemini)` : alerta persiste, Excel existe
+  - `Excel generado`         : revisado y aprobado por analista 1 (final)
+  - Estados `pre-generado*` agregados a `ESTADOS_SKIP_DEFAULT` en config_reglas
+
+  **4. Visibilidad del extractor**
+  - `extraer_pdf_hibrido` ahora anota `datos["_extractor_uso"]` ∈ {"pdfplumber", "gemini"}
+  - El estado en GENERADOS lo refleja como `, gemini` (cuando aplica)
+  - Cero cambios al Excel — la visibilidad vive solo en GENERADOS
+
+  **5. Rol Yenny → "analista 1"**
+  - Cambios SOLO en docs/comentarios que se referían al rol genérico
+  - Valor literal `"Pte. Validar Yenny"` (estado del Sheet) **NO cambia** —
+    sigue siendo el dropdown value. Solo cambia la mención genérica del rol.
+
+  **Archivos modificados:**
+  - `sprint_1/pipeline_davivienda.py` — auto-retry Gemini + genera siempre + estados dinámicos
+  - `sprint_1/config_reglas.py` — SHEET_PESTANA_DESTINO + estados skip
+  - `sprint_1/listar_pendientes_hoy.py` — Yenny → analista 1 en comentarios
+  - `automation/apps_script/staging_approval_workflow.gs` v3.0 → v3.1
+  - `MOM_DAVIVIENDA.md` v1.6 → v1.7 (R-DVV-11 actualizada)
+  - `MASTER_RULES.md` v3.9 → v4.0 (cambio estructural mayor)
+  - `ESTADO_PROYECTO.md` §0 alineado
+  - `_planning/OLA_3_PLAN.md` — "equipo Yenny" → "equipo de analistas"
+
+  **Tests post:**
+  - `test_fase2.py` 16/16 PASS ✅
+  - `pytest sprint_1/tests/` 50/50 PASS ✅
+  - `maintenance --dry-run` anom_drift = 0 ✅
+
+  **Acción pendiente Jose (manual)**:
+  - Renombrar pestaña "STAGING" → "GENERADOS" en el Sheet `BASE PARA ESTUDIOS OK`
+    (click derecho sobre la pestaña → Cambiar nombre)
+
+---
+
 ## 2026-05-12
 
 - **[2026-05-12 SESION DIA 1 CLOUD parte 4] — audit maintenance.py: STEP 8 drift expandido:**

@@ -145,7 +145,7 @@ Crear o usar un Workspace de Google (cualquier dominio que MejorAhora controle) 
 
 1. Validar si MejorAhora tiene Google Workspace activo. Si no: comprar plan Business Starter (~$6/usuario/mes).
 2. Crear Shared Drive dentro del Workspace, ej. "MejorAhora Analistas".
-3. Mover (no copiar) los Excel históricos de §4.2 al Shared Drive — **importante**: cualquier link existente apuntando a §4.2 dejará de funcionar. Notificar al equipo Yenny + consultores antes.
+3. Mover (no copiar) los Excel históricos de §4.2 al Shared Drive — **importante**: cualquier link existente apuntando a §4.2 dejará de funcionar. Notificar al equipo de analistas + consultores antes.
 4. En GCP Console → IAM → Service Accounts → crear `mejorahora-drive-uploader@<projectid>.iam.gserviceaccount.com`.
 5. Otorgar al SA acceso al Shared Drive como Content Manager (panel Shared Drive → Manage members).
 6. Descargar JSON de la nueva SA → `credentials/drive_uploader_sa.json`.

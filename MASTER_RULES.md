@@ -1,7 +1,12 @@
 # MASTER_RULES — MejorAhora SAS · Reglas Generales del Proyecto
 
-**Versión:** 3.9
-**Última revisión:** 2026-05-12 (Sesión día 1 cloud — audit H maintenance.py: `import re` movido al top del módulo (era inline dentro de check_doc_code_drift); STEP 8 drift checker expandido con check 5b para `RETENTION_PIPELINE_LOGS_DAYS` (antes solo verificaba `RETENTION_N`, ahora también el de logs pipeline JSON contra §15.4). Mejora la cobertura del anti-drift sin tocar producción.)
+**Versión:** 4.0
+**Última revisión:** 2026-05-14 (Jose feedback caso ALVARO MAHECHA + cambios de proceso revisión manual). Cambios estructurales mayores:
+  1. **R-DVV-11 evoluciona** de "abortar sin Excel" a "auto-retry con Gemini Vision + generar Excel siempre" (MOM_DAVIVIENDA §R-DVV-11 actualizada).
+  2. **Pestaña renombrada** `STAGING` → `GENERADOS` (config_reglas.SHEET_PESTANA_DESTINO + Apps Script + listar_pendientes). Jose renombra en el Sheet manualmente DESPUÉS del deploy.
+  3. **Estados nuevos en GENERADOS columna G**: `pre-generado` (todo OK pdfplumber), `pre-generado, gemini` (Gemini intervino), `REVISION_MANUAL: ... (gemini)` (alerta persiste tras retry). El estado `Excel generado` ahora significa "revisado y aprobado por analista 1".
+  4. **Visibilidad del extractor** anotada en estado (gemini cuando aplique). Tracking via `_extractor_uso` en `datos_pdf` dict.
+  5. **Rol Yenny → analista 1** en docs (no en valores literales del Sheet como `Pte. Validar Yenny`).
 **Mantenido por:** Ciclo mantenimiento 12h + actualizaciones puntuales (ver §19)
 
 > **ESTE ES EL ARCHIVO MAESTRO GENERAL DEL PROYECTO.**
@@ -97,7 +102,7 @@ Prioridad automatización: `Cloud Routines` > `Scheduled Tasks Cowork` > `Custom
 | `Pendiente` | Incluye | Procesa |
 | `Pte. Validar Yenny` | Incluye | Procesa |
 | `Mora` | Incluye | Procesa |
-| `Pendiente NOTA consultor` | Excluye (estudio hecho, solo falta nota Yenny) | N/A |
+| `Pendiente NOTA consultor` | Excluye (estudio hecho, solo falta nota del analista 1) | N/A |
 | `Realizado` | Excluye | N/A |
 | `Cancelado` | Excluye | N/A |
 | `Excel generado` | N/A | Saltar (re-procesar solo con `--force`) |
@@ -513,5 +518,5 @@ Instrucción:
 
 ---
 
-**FIN MASTER_RULES v3.9**
+**FIN MASTER_RULES v4.0**
 **Próxima revisión:** cuando se sume otro banco o cambie política transversal.

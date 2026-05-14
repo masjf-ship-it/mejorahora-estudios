@@ -122,7 +122,12 @@ MAX_OUTPUT_TOKENS_VISION = 8192  # Subido desde 2048 tras truncado Fernando
 # ============================================================
 SHEET_BD_ID = "1_9FUAo8cSrLDWAkJlNoy29Cmyh9ojXwnW6zbvhGsESA"  # ÚNICA BD VÁLIDA
 SHEET_BD_NOMBRE = "BASE PARA ESTUDIOS OK"
-SHEET_PESTANA_DESTINO = "STAGING"  # Nunca REVISION ni producción directa
+# 2026-05-14 (Jose feedback): pestana renombrada STAGING -> GENERADOS para reflejar
+# que el pipeline GENERA estudios; el analista 1 luego los revisa antes de imprimir
+# el PDF. El cambio debe hacerse en CODIGO primero (este push) y DESPUES en el Sheet
+# (Jose renombra la pestana manualmente). Si se renombra al reves, el pipeline siguiente
+# falla buscando "GENERADOS" en un Sheet que aun tiene "STAGING".
+SHEET_PESTANA_DESTINO = "GENERADOS"  # Nunca REVISION ni produccion directa
 
 # Lista negra (sheets prohibidas — NUNCA usar)
 SHEET_BD_PROHIBIDAS = (
@@ -134,13 +139,24 @@ SHEET_BD_PROHIBIDAS = (
 DRIVE_FOLDER_EXTRACTOS_RO = "17hN5TDiQ3Ozop-xT6g4OYAyQrZkZT0os"  # READ-ONLY
 DRIVE_FOLDER_ANALISTAS_RW = "1UVsQtyzQHEpfRlcjUrq8gBsXgEqABoym"  # Excel destino
 
-# Estados STAGING (normalizados con _norm())
-ESTADOS_SKIP_DEFAULT = ("excel generado", "procesado", "completado", "realizado")
+# Estados GENERADOS (normalizados con _norm())
+# Pre-generado / pre-generado, gemini -> el analista 1 aun debe revisar
+# Excel generado -> revisado por analista 1 (final, listo para PDF al consultor)
+# REVISION_MANUAL: <detalle> -> alerta R-DVV-11 / etc., Excel existe pero requiere
+#                               correccion in-place
+ESTADOS_SKIP_DEFAULT = (
+    "excel generado", "procesado", "completado", "realizado",
+    # 2026-05-14: anadidos los estados nuevos para que listar_pendientes no
+    # los re-publique a GENERADOS (ya estan en el flujo del analista).
+    "pre-generado", "pre-generado, gemini",
+)
 # NOTA: "pendiente frech" YA NO bloquea (R-DVV-09 leasing=hipotecario)
+# NOTA: "REVISION_MANUAL" NO esta en el skip — el analista lo cambia a
+# "Excel generado" tras corregir, y entonces si se considera procesado.
 
 # Pestanas (worksheets) de la Sheet canonica
-SHEET_PESTANA_REGISTROS = "REGISTROS"  # fuente de verdad (solo lectura, manual Yenny)
-# SHEET_PESTANA_DESTINO ya definida arriba ("STAGING") — alias para claridad
+SHEET_PESTANA_REGISTROS = "REGISTROS"  # fuente de verdad (solo lectura, manual analista 1)
+# SHEET_PESTANA_DESTINO ya definida arriba — alias para claridad
 
 # ============================================================
 # TEMPLATE PESOS.xlsx — integridad
