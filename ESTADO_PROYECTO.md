@@ -1,6 +1,6 @@
 # ESTADO_PROYECTO — Roadmap & Dashboard MejorAhora Estudios
 
-**Versión:** 2.2 · 2026-05-07
+**Versión:** 2.3 · 2026-05-15 PM
 **Rol:** Dashboard de progreso. NO es fuente de reglas (ver `MASTER_RULES.md` y `MOM_<BANCO>.md`).
 
 ---
@@ -8,8 +8,9 @@
 ## 0. Reglas vigentes
 
 > **REGLAS Y REFERENCIA:** este archivo NO contiene reglas. Solo estado.
-> - Reglas generales: `MASTER_RULES.md` (v5.0)
+> - Reglas generales: `MASTER_RULES.md` (v5.1)
 > - Reglas Davivienda: `MOM_DAVIVIENDA.md` (v1.9)
+> - Reglas Bancolombia: `MOM_BANCOLOMBIA.md` (v1.0)
 > - Constantes código: `sprint_1/config_reglas.py`
 > - Cheatsheet bancos: `MANUAL_EXTRACTO_BANCOS.md`
 > - Memoria operativa Claude: `spaces/.../memory/MEMORY.md` + `CHANGELOG.md`
@@ -20,9 +21,9 @@
 
 | Banco | Estado | Pipeline | Tests | Notas |
 |---|---|---|---|---|
-| **DAVIVIENDA** | ✅ OPERATIVO | `pipeline_davivienda.py` | 16/16 PASS (A-P) | R-DVV-01..18 + §3a-3e activas. MOM_DAVIVIENDA.md vigente. |
-| BANCOLOMBIA | 🟡 PENDIENTE | — | — | Próximo en cola. Construir `extract_bancolombia_pdf.py` + `MOM_BANCOLOMBIA.md` |
-| CAJA SOCIAL | 🟡 PENDIENTE | — | — | Tras Bancolombia |
+| **DAVIVIENDA** | ✅ OPERATIVO | `pipeline_davivienda.py` | 16/16 PASS (A-P) | R-DVV-01..21 + §3a-3e activas. MOM_DAVIVIENDA v1.9. En cloud desde 2026-04-25. |
+| **BANCOLOMBIA** | 🟢 OPERATIVO (smoke pendiente) | `pipeline_bancolombia.py` | imports OK, smoke cloud pendiente | R-BCO-01..21 activas. MOM_BANCOLOMBIA v1.0 (2026-05-15). PDFs protegidos con CC. Arquitectura Patrón 3 Module-per-Bank. |
+| CAJA SOCIAL | 🟡 PENDIENTE | — | — | Tras volumen Bancolombia estable. Ya en `BANCOS_SIN_INGRESOS_REQUERIDOS`. |
 | FNA | ⚪ BACKLOG | — | — | — |
 | BANCO DE BOGOTÁ | ⚪ BACKLOG | — | — | — |
 | Resto | ⚪ BACKLOG | — | — | AV Villas, Colpatria, etc. |
@@ -41,21 +42,26 @@
 | 2026-04-22 | Migración Vertex AI Gemini 2.5 Pro |
 | 2026-04-23 | Sprint Fix Bloque (Fases 0-4): bug `_f` colombiano, R-DVV-06+G3, R-DVV-07, R-DVV-09 leasing, M1+M2 validadores, STEP 7 memoria |
 | 2026-04-24 | Sprint Retro: 7 fixes (R-DVV-10/11/12 + §3c/3d/3e) + MOM creado + MASTER_RULES v2.0 + MOM_DAVIVIENDA v1.0 + arquitectura limpia |
+| 2026-04-25 | Davivienda cloud operativo — Pipeline AM scheduled |
+| 2026-05-07 | Mantenimiento 60min → 12h. STEP 7 retirado (era workaround Cowork). |
+| 2026-05-14 | Retro Jose 5 Excels: tasa Cte. Cobrada regex, filename con credito_corto, TZ Colombia, brecha opc 3-4 Mode B. MASTER_RULES v5.0. |
+| **2026-05-15 PM** | **Bancolombia incorporado** — Pattern 3 Module-per-Bank. `pipeline_bancolombia.py` + `extract_bancolombia_pdf.py` + `validar_extraccion_bancolombia.py` + `MOM_BANCOLOMBIA.md` v1.0. PDFs protegidos con CC. `vision_extractor.PROMPTS_POR_BANCO`. `run_pipeline.sh/.bat` multi-banco. MASTER_RULES v5.1. |
 
 ---
 
 ## 3. Próximos hitos (roadmap)
 
 ### Corto plazo (esta semana)
-- [ ] Procesar volumen Davivienda diario sin intervención (scheduled task 08:30)
-- [ ] Validar sin errores 5+ días consecutivos antes de avanzar a Bancolombia
+- [ ] Smoke test cloud Bancolombia mañana 9:00 GMT-5 (Pipeline AM automático corre DVV + BCO)
+- [ ] Validar primeros Excels Bancolombia generados (Marisol, Yanine, Anyi como casos canónicos)
+- [ ] Re-procesar SARA (R-DVV-10c) en próximo run automático
+- [ ] Decidir si saldo capital con decimales es bug Excel display o real (Fix 5 pendiente — Jose verifica B15 en barra fórmulas)
 
 ### Mediano plazo (próximas 2 semanas)
-- [ ] Construir `extract_bancolombia_pdf.py`
-- [ ] Crear `MOM_BANCOLOMBIA.md`
-- [ ] Migrar pipeline a `pipeline_bancolombia.py` separado
-- [ ] Test golden suite para Bancolombia
-- [ ] Crear `pipeline_3bancos.py` como meta-orquestador (SOLO cuando ≥2 bancos OK)
+- [ ] Tests golden suite específicos Bancolombia (`tests/test_extract_bancolombia.py`)
+- [ ] Volumen Bancolombia estable 5+ días consecutivos
+- [ ] Decidir si refactor a `pipeline_utils.py` (compartir helpers DVV/BCO) o esperar 3er banco
+- [ ] Caja Social como siguiente banco (ya en `BANCOS_SIN_INGRESOS_REQUERIDOS`)
 
 ### Largo plazo
 - [ ] Caja Social
@@ -132,5 +138,5 @@ Las decisiones operativas viven en MASTER_RULES.md y MOM_<BANCO>.md. Aquí solo 
 
 ---
 
-**FIN ESTADO_PROYECTO v2.2**
-**Próxima revisión:** cuando se sume Bancolombia o se completen 5+ días consecutivos sin errores.
+**FIN ESTADO_PROYECTO v2.3**
+**Próxima revisión:** cuando smoke cloud Bancolombia confirme operativo o se sume Caja Social.

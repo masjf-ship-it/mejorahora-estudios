@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
 # ============================================================
-# MejorAhora — Pipeline Davivienda (espejo Linux de run_pipeline.bat)
+# MejorAhora — Pipeline Multi-Banco (espejo Linux de run_pipeline.bat)
 # Para ejecucion en Cloud Routines (Anthropic) o cualquier Linux.
-# Corre: PASO 0 smoke_test → PASO 1 listar_pendientes → PASO 2 pipeline.
+# Corre secuencialmente:
+#   PASO 0    smoke_test
+#   PASO 1a   REGISTROS -> STAGING Davivienda
+#   PASO 1b   REGISTROS -> STAGING Bancolombia (2026-05-15)
+#   PASO 2a   pipeline_davivienda
+#   PASO 2b   pipeline_bancolombia (2026-05-15)
 # Logs: _logs/scheduled_YYYYMMDD.txt (MASTER_RULES §18.4)
 # ============================================================
 set -euo pipefail
@@ -75,26 +80,57 @@ fi
 echo "" >> "$LOG"
 
 # ---------------------------------------------------------
-# PASO 1: REGISTROS -> STAGING (con dedup)
+# PASO 1a: REGISTROS -> STAGING Davivienda (con dedup)
 # ---------------------------------------------------------
-echo "[$(TS)] PASO 1: listar_pendientes_hoy --banco davivienda" >> "$LOG"
+echo "[$(TS)] PASO 1a: listar_pendientes_hoy --banco davivienda" >> "$LOG"
 python listar_pendientes_hoy.py --banco davivienda >> "$LOG" 2>&1
-RC1=$?
-echo "[$(TS)] PASO 1 exit=$RC1" >> "$LOG"
+RC1A=$?
+echo "[$(TS)] PASO 1a exit=$RC1A" >> "$LOG"
 
 echo "" >> "$LOG"
 
 # ---------------------------------------------------------
-# PASO 2: pipeline E2E
+# PASO 1b: REGISTROS -> STAGING Bancolombia (con dedup) — 2026-05-15
+# Procesa pendientes Bancolombia en paralelo. Mismo Sheets, mismo dedup logic.
+# Si Davivienda falla, Bancolombia sigue corriendo (son independientes).
+# ---------------------------------------------------------
+echo "[$(TS)] PASO 1b: listar_pendientes_hoy --banco bancolombia" >> "$LOG"
+python listar_pendientes_hoy.py --banco bancolombia >> "$LOG" 2>&1
+RC1B=$?
+echo "[$(TS)] PASO 1b exit=$RC1B" >> "$LOG"
+
+echo "" >> "$LOG"
+
+# ---------------------------------------------------------
+# PASO 2a: pipeline E2E Davivienda
 #   Hipotecario (570/571) y Leasing (600) procesan iguales (R-DVV-09)
 # ---------------------------------------------------------
-echo "[$(TS)] PASO 2: pipeline_davivienda" >> "$LOG"
+echo "[$(TS)] PASO 2a: pipeline_davivienda" >> "$LOG"
 python pipeline_davivienda.py >> "$LOG" 2>&1
-RC2=$?
+RC2A=$?
+echo "[$(TS)] PASO 2a exit=$RC2A" >> "$LOG"
+
+echo "" >> "$LOG"
+
+# ---------------------------------------------------------
+# PASO 2b: pipeline E2E Bancolombia — 2026-05-15
+# PDFs Bancolombia vienen protegidos por contraseña (cedula del titular).
+# El pipeline pasa cedula_fallback de STAGING al extractor (pdfplumber+Gemini).
+# Corre AUN SI Davivienda fallo (procesos independientes en runtime/Sheets).
+# ---------------------------------------------------------
+echo "[$(TS)] PASO 2b: pipeline_bancolombia" >> "$LOG"
+python pipeline_bancolombia.py >> "$LOG" 2>&1
+RC2B=$?
+echo "[$(TS)] PASO 2b exit=$RC2B" >> "$LOG"
 
 {
   echo ""
-  echo "[$(TS)] FIN pipeline PASO0=$RC0 PASO1=$RC1 PASO2=$RC2"
+  echo "[$(TS)] FIN pipeline PASO0=$RC0 PASO1a=$RC1A PASO1b=$RC1B PASO2a=$RC2A PASO2b=$RC2B"
 } >> "$LOG"
 
-exit $RC2
+# Exit code combinado: bitwise OR -> falla si CUALQUIERA de los dos pipelines fallo.
+# RC2A=0 RC2B=0 -> 0 (todo OK)
+# RC2A=1 RC2B=0 -> 1 (Davivienda fallo, Bancolombia OK)
+# RC2A=0 RC2B=2 -> 2 (Davivienda OK, Bancolombia fallo)
+# RC2A=1 RC2B=2 -> 3 (ambos fallaron)
+exit $((RC2A | RC2B))

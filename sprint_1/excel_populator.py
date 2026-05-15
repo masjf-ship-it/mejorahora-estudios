@@ -274,6 +274,7 @@ PLAZO_CELLS = ['B16', 'B17', 'B18', 'B19', 'B20', 'B21']
 # Plazos por defecto (decrecientes, en anos). Importado de reglas_negocio
 # para evitar duplicacion (2026-05-12: antes era literal local stale-prone).
 from reglas_negocio import PLAZOS_DEFAULT as _PLAZOS_DEFAULT  # noqa: E402
+from reglas_negocio import BANCOS_SIN_INGRESOS_REQUERIDOS as _BANCOS_SIN_ING  # noqa: E402
 
 
 def _calcular_plazos_dinamicos(plazo_pendiente_meses):
@@ -762,6 +763,26 @@ class ExcelPopulator:
         self.template_path = template_path
 
     def crear_estudio(self, datos: DatosClienteExcel, carpeta_salida: str, fecha: str | None = None) -> str:
+        # ----------------------------------------------------------------
+        # 2026-05-15 R-BCO-05 (defensa en profundidad): si el banco no exige
+        # certificacion de ingresos (Bancolombia, Caja Social, FNA), forzar
+        # `ingresos = 0` aqui antes de escribir B26. Esto duplica la defensa
+        # del pipeline_bancolombia.py (que ya hace datos.ingresos = 0 antes
+        # de construir el Excel), pero garantiza que ningun call-path olvide
+        # este invariante. Defensa en profundidad - no rompe Davivienda
+        # (BANCOS_SIN_INGRESOS_REQUERIDOS no incluye Davivienda).
+        # ----------------------------------------------------------------
+        try:
+            _banco_norm = (datos.banco or "").upper().strip()
+        except Exception:
+            _banco_norm = ""
+        if _banco_norm in _BANCOS_SIN_ING and datos.ingresos != 0:
+            # Solo logueamos si habia un valor distinto de 0 (para detectar
+            # bugs aguas-arriba donde ingresos llegan != 0 indebidamente).
+            print(f"[excel_populator] R-BCO-05 defensa: banco={_banco_norm} "
+                  f"ingresos={datos.ingresos:,.0f} -> forzado a 0")
+            datos.ingresos = 0
+
         if fecha is None:
             # 2026-05-15 (Jose feedback): zona Colombia (no UTC). En cloud el
             # pipeline corre UTC; sin TZ, fecha del filename podia salir un dia

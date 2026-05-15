@@ -136,15 +136,21 @@ def _vertex_client():
 # PDF -> IMAGENES
 # ============================================================
 
-def _pdf_to_png_bytes(pdf_path: Path, max_pages: int = VISION_MAX_PAGES) -> list:
+def _pdf_to_png_bytes(pdf_path: Path, max_pages: int = VISION_MAX_PAGES,
+                       password: str = "") -> list:
     """Convierte primeras `max_pages` paginas del PDF a PNG bytes.
     Usa pypdfium2 si esta disponible (sin poppler), sino pdf2image.
+
+    2026-05-15: `password` para PDFs protegidos (Bancolombia usa la cedula).
     """
     pdf_path = Path(pdf_path)
     # Intento 1: pypdfium2 (pure-python backend, sin poppler)
     try:
         import pypdfium2 as pdfium
-        pdf = pdfium.PdfDocument(str(pdf_path))
+        if password:
+            pdf = pdfium.PdfDocument(str(pdf_path), password=password)
+        else:
+            pdf = pdfium.PdfDocument(str(pdf_path))
         try:
             out = []
             n = min(len(pdf), max_pages)
@@ -162,7 +168,13 @@ def _pdf_to_png_bytes(pdf_path: Path, max_pages: int = VISION_MAX_PAGES) -> list
     except ImportError:
         pass
 
-    # Intento 2: pdf2image + poppler
+    # Intento 2: pdf2image + poppler (password no soportado por pdf2image directo;
+    # si el PDF requiere password y no hay pypdfium2 disponible, lanza error claro)
+    if password:
+        raise RuntimeError(
+            "PDF requiere password pero pypdfium2 no esta disponible. "
+            "pdf2image no soporta password directo. Instalar: pip install pypdfium2"
+        )
     try:
         from pdf2image import convert_from_path
     except ImportError:
@@ -183,7 +195,7 @@ def _pdf_to_png_bytes(pdf_path: Path, max_pages: int = VISION_MAX_PAGES) -> list
 # PROMPT Y LLAMADA
 # ============================================================
 
-EXTRACTION_PROMPT = """Eres un parser de extractos bancarios Davivienda (Colombia).
+EXTRACTION_PROMPT_DAVIVIENDA = """Eres un parser de extractos bancarios Davivienda (Colombia).
 
 Extrae de la imagen los siguientes campos y responde SOLO con un objeto JSON
 valido (sin comentarios, sin texto fuera del JSON, sin bloques markdown).
@@ -291,8 +303,162 @@ EJEMPLO DE REFERENCIA (Fernando Gallo, credito 570238110001018-4):
   que no estes tomando valores del cuadro de amortizacion mensual en lugar del resumen total."""
 
 
-def _call_gemini_vision(image_bytes_list: list, model: str = DEFAULT_MODEL) -> dict:
-    """Llama Gemini via Vertex AI y parsea JSON estricto."""
+# ============================================================
+# PROMPT BANCOLOMBIA (2026-05-15 — caso Jose, formato distinto)
+# ============================================================
+EXTRACTION_PROMPT_BANCOLOMBIA = """Eres un parser de extractos bancarios Bancolombia (Colombia).
+
+Extrae de la imagen los siguientes campos y responde SOLO con un objeto JSON
+valido (sin comentarios, sin texto fuera del JSON, sin bloques markdown).
+
+ENCABEZADO DEL EXTRACTO:
+- Titulo: "Estado de Credito Hipotecario en PESOS"
+- Salutacion: "SEÑOR(A): <NOMBRE COMPLETO>"
+- Linea con: Fecha de Pago | Fecha en que se genero el extracto | Valor a Pagar | Saldo a la fecha...
+
+Campos requeridos (usar null si no aparece):
+
+{
+  "credito": string,           // "Numero de credito 9NNNNNNNNNN" (formato Bancolombia sin guion verificador, ej "90000386475")
+  "nombre": string,            // titular completo, MAYUSCULAS, despues de "SEÑOR(A):"
+  "email": string,             // si aparece (NO usar emails de @bancolombia.com — esos son del banco)
+  "cuota_mensual": number,     // "Valor de la cuota sin seguros y sin comisiones" + seguros (SIN mora). Si solo encuentras "Valor a Pagar", usalo (puede incluir mora — registrar valor_cuotas_vencidas para descontar).
+  "valor_a_pagar": number,     // "Valor a Pagar" (header tabla pag.1, incluye mora si la hay)
+  "valor_cuota_sin_seguros": number, // "Valor de la cuota sin seguros y sin comisiones"
+  "valor_prorrogado": number,  // null si Bancolombia no lo expone
+  "valor_mora": number,        // "Valor cuotas vencidas" (si > 0 cliente esta en mora)
+  "plazo_inicial": number,     // "Plazo total en meses" (ej 240)
+  "cuotas_pendientes": number, // "Nro. cuotas pendientes para pago total"
+  "cuotas_pagadas": number,    // ("Nro. cuota a cancelar" - 1)
+  "dias_liquidados": number,   // Bancolombia no lo expone explicitamente; usar 30 por defecto
+  "dias_mora": number,         // si "Nro. cuotas vencidas" > 0, retornar 30. Sino 0.
+  "cuotas_vencidas": number,   // "Nro. cuotas vencidas" (entero)
+  "amortizacion": string,      // "Pesos" si Plan menciona "PESOS"; "Uvr" si UVR
+  "tasa_pactada": number,      // "Tasa interes pactada X% EA" — decimal (13.00% -> 0.1300)
+  "tasa_cobrada": number,      // "Tasa interes cobrada X% EA" — CANONICA para estudio (R-BCO-04)
+  "tasa_subsidiada": number,   // "Tasa interes subsidiada X% EA" (decimal)
+  "tasa_mora_cobrada": number, // "Tasa interes mora cobrada X% EA" (decimal, suele 14-20%)
+  "tasa_seguro_vida": number,  // Bancolombia tabula por edad en pag.2; usar 0 si no aplica
+  "tasa_seguro_incendio": number,
+  "tiene_frech": boolean,      // true si "Valor subsidio Gobierno" > 0 OR "tasa_subsidiada" > 0
+  "frech_cobertura_pag1": number, // "Valor subsidio Gobierno"
+  "pago_minimo_cliente": number,  // "Valor cuota con subsidio" si tiene_frech
+  "seguro_vida": number,       // "Valor seguro vida" (con o sin asterisco prefijo)
+  "seguro_incendio": number,   // "Valor seguro incendio"
+  "seguro_terremoto": number,  // "Valor seguro terremoto"
+  "intereses_corrientes": number, // suma columna "Intereses Corriente" de la tabla "Movimientos Ultimo Periodo"
+  "intereses_mora": number,    // "Interes de mora" (campo unico, NO de la tabla)
+  "abonos_capital": number,    // suma columna "Capital" de la tabla "Movimientos Ultimo Periodo"
+  "total_aplicado": number,    // suma de Capital + Intereses + Seguros aplicados en el periodo
+  "valor_asegurado_vida": number,    // Bancolombia muestra solo "Valor asegurado Incendio y Terremoto"
+  "valor_asegurado_inmueble": number, // "Valor asegurado Incendio y Terremoto $ X"
+  "saldo_anterior": number,    // saldo capital + abonos del periodo (estimar)
+  "saldo_capital": number,     // "Saldo a la fecha en que se genero el extracto $ X" — VALOR EN HEADER TABLA
+  "seguros_inferior_total": number, // Bancolombia no expone este campo separado; usar null
+  "tipo": string,              // "Hipotecario" si "Estado de Credito Hipotecario"; "Leasing H." si menciona Leasing
+  "es_vis": boolean            // true si "Plan: ... VIVDA VIS"; false si "VIVDA NOVIS"
+}
+
+DICCIONARIO BANCOLOMBIA (etiqueta del extracto -> campo JSON):
+- "Numero de credito 9NNNNNNN" (sin guion) -> credito
+- "SEÑOR(A): NOMBRE"               -> nombre
+- "Saldo a la fecha en que se genero el extracto" -> saldo_capital
+- "Valor a Pagar"                  -> valor_a_pagar
+- "Valor de la cuota sin seguros y sin comisiones" -> valor_cuota_sin_seguros
+- "Tasa interes cobrada X% EA"     -> tasa_cobrada  ⚠️ CANONICA (R-BCO-04)
+- "Tasa interes pactada X% EA"     -> tasa_pactada
+- "Tasa interes mora cobrada X%"   -> tasa_mora_cobrada (NUNCA usar como tasa_cobrada)
+- "Tasa interes subsidiada X%"     -> tasa_subsidiada
+- "Plazo total en meses"           -> plazo_inicial
+- "Nro. cuota a cancelar"          -> cuotas_pagadas + 1
+- "Nro. cuotas pendientes para pago total" -> cuotas_pendientes
+- "Nro. cuotas vencidas"           -> cuotas_vencidas (si > 0, cliente en mora)
+- "Valor cuotas vencidas"          -> valor_mora
+- "Interes de mora"                -> intereses_mora
+- "Valor seguro vida"              -> seguro_vida (puede tener * prefijo)
+- "Valor seguro incendio"          -> seguro_incendio
+- "Valor seguro terremoto"         -> seguro_terremoto
+- "Valor subsidio Gobierno"        -> frech_cobertura_pag1 (FRECH)
+- "Valor cuota con subsidio"       -> pago_minimo_cliente (cuando hay FRECH)
+- "Valor asegurado Incendio y Terremoto" -> valor_asegurado_inmueble
+- "Plan: CUOTA CONSTANTE EN PESOS-VIVDA VIS"   -> es_vis=true, amortizacion="Pesos"
+- "Plan: CUOTA CONSTANTE EN PESOS-VIVDA NOVIS" -> es_vis=false, amortizacion="Pesos"
+
+TABLA "Movimientos Ultimo Periodo" (pag.1 final):
+Columnas: Fecha | Descripcion | Capital | Intereses Corriente | Intereses Mora | Vida | Incendio | Terremoto | Otros | Total
+Sumar columnas:
+- abonos_capital = suma de columna "Capital" (puede incluir abonos extras, beneficios)
+- intereses_corrientes = suma de columna "Intereses Corriente"
+- total_aplicado = suma de columna "Total" (toda la tabla)
+
+CLIENTES EN MORA (Bancolombia):
+- Si "Nro. cuotas vencidas" > 0: cliente en mora.
+- "Valor a Pagar" incluye TANTO la cuota corriente COMO las vencidas + interes de mora.
+- Para `cuota_mensual` del estudio: usar SIEMPRE "Valor de la cuota sin seguros y sin comisiones" + seguros aplicados (NO usar valor_a_pagar porque incluye mora).
+- Esto evita inflar la cuota canonica con la deuda atrasada.
+
+CLIENTES CON FRECH (subsidio Gobierno activo):
+- "Valor subsidio Gobierno" > 0 indica FRECH activo.
+- "Tasa interes subsidiada" > 0 tambien lo confirma.
+- La cuota efectiva del cliente es "Valor cuota con subsidio" (no la cuota total).
+- Para el estudio, usar `tasa_cobrada` (NO la subsidiada) — el subsidio del Gobierno
+  termina en algun momento y queremos estudiar el escenario sin subsidio.
+
+INGRESOS REQUERIDOS:
+- Bancolombia NO requiere ingresos certificados para reduccion de plazo (R-BCO-05).
+- Si el extracto NO menciona ingresos, dejar el campo `ingresos` fuera del JSON
+  (el pipeline lo setea a 0 automaticamente).
+
+ENCODING DEL PDF BANCOLOMBIA:
+- Los PDFs originales tienen caracteres mojibake (é → `�`, ó → `�`, ñ → `�`).
+- Cuando veas el caracter `�`, asume que probablemente es: e, o, n con tilde.
+- Ejemplo: "SE�OR(A):" = "SEÑOR(A):"; "N�mero" = "Numero".
+
+Reglas finales:
+- Montos en pesos colombianos: numero float, sin simbolo ni separadores.
+- Porcentajes EA como decimal: "13.00% EA" -> 0.1300.
+- Si una pagina no contiene un campo, NO LO INVENTES: usar null.
+- No incluir explicaciones ni markdown.
+
+EJEMPLO DE REFERENCIA (MARISOL SANCHEZ SALGUERO, credito 90000386475 VIS sin FRECH):
+  saldo_capital=152172660.26, cuota_mensual=1767048.00, valor_cuota_sin_seguros=1703850.00,
+  seguro_vida=35149, seguro_incendio=16830, seguro_terremoto=11219,
+  tasa_cobrada=0.1300, plazo_inicial=240, cuotas_pendientes=236, cuotas_vencidas=0,
+  tiene_frech=false, es_vis=true, tipo="Hipotecario".
+
+EJEMPLO DE REFERENCIA EN MORA (YANINE NAVARRO, credito 90000102858 NOVIS):
+  saldo_capital=42641427.90, cuota_mensual=494031.05 (sin mora), valor_a_pagar=989714.67 (con mora),
+  cuotas_vencidas=1, valor_mora=495683.62, intereses_mora=240.57,
+  tasa_cobrada=0.1045, tasa_mora_cobrada=0.1568,
+  seguro_vida=17586, seguro_incendio=15106, seguro_terremoto=10070,
+  plazo_inicial=240, cuotas_pendientes=177, tiene_frech=false, es_vis=false."""
+
+
+# ============================================================
+# DISPATCHER MULTI-BANCO (2026-05-15)
+# ============================================================
+
+PROMPTS_POR_BANCO = {
+    "DAVIVIENDA": EXTRACTION_PROMPT_DAVIVIENDA,
+    "BANCOLOMBIA": EXTRACTION_PROMPT_BANCOLOMBIA,
+}
+
+# Retrocompat: codigo viejo que lee EXTRACTION_PROMPT (default Davivienda).
+EXTRACTION_PROMPT = EXTRACTION_PROMPT_DAVIVIENDA
+
+
+def _get_prompt(banco: str = "DAVIVIENDA") -> str:
+    """Retorna el prompt Gemini correcto segun el banco. Default: Davivienda."""
+    return PROMPTS_POR_BANCO.get(banco.upper(), EXTRACTION_PROMPT_DAVIVIENDA)
+
+
+def _call_gemini_vision(image_bytes_list: list, model: str = DEFAULT_MODEL,
+                        banco: str = "DAVIVIENDA") -> dict:
+    """Llama Gemini via Vertex AI y parsea JSON estricto.
+
+    2026-05-15: parametro `banco` selecciona el prompt apropiado del dict
+    PROMPTS_POR_BANCO. Default Davivienda por retrocompat.
+    """
     from google.genai import types
 
     client = _vertex_client()
@@ -301,7 +467,7 @@ def _call_gemini_vision(image_bytes_list: list, model: str = DEFAULT_MODEL) -> d
         types.Part.from_bytes(data=img, mime_type="image/png")
         for img in image_bytes_list
     ]
-    parts.append(EXTRACTION_PROMPT)
+    parts.append(_get_prompt(banco))
 
     resp = client.models.generate_content(
         model=model,
@@ -397,13 +563,19 @@ def necesita_fallback(datos_base: dict) -> bool:
 
 
 def extraer_con_vision(pdf_path: Path, base: dict = None,
-                       model: str = DEFAULT_MODEL) -> dict:
+                       model: str = DEFAULT_MODEL,
+                       banco: str = "DAVIVIENDA",
+                       password: str = "") -> dict:
     """Llama Gemini Vision sobre el PDF y retorna datos mergeados con `base`.
 
     Si `base` es None, retorna solo los datos de Vision normalizados.
+
+    2026-05-15: nuevos parametros
+      - `banco`: selecciona el prompt apropiado (DAVIVIENDA / BANCOLOMBIA).
+      - `password`: password de apertura del PDF (Bancolombia usa la cedula).
     """
-    imgs = _pdf_to_png_bytes(pdf_path, max_pages=VISION_MAX_PAGES)
-    vision = _call_gemini_vision(imgs, model=model)
+    imgs = _pdf_to_png_bytes(pdf_path, max_pages=VISION_MAX_PAGES, password=password)
+    vision = _call_gemini_vision(imgs, model=model, banco=banco)
     if base is None:
         return _merge_with_base({}, vision)
     return _merge_with_base(base, vision)

@@ -1,7 +1,9 @@
 # MASTER_RULES — MejorAhora SAS · Reglas Generales del Proyecto
 
-**Versión:** 5.0
-**Última revisión:** 2026-05-15 (Jose revisó 5 Excels + retroalimentación). **Cambio mayor estructural** — formato filename Excel cambia de `ESTUDIO {nombre}-{fecha}.xlsx` a `ESTUDIO {nombre}-{credito_corto}-{fecha}.xlsx` para distinguir múltiples créditos del mismo cliente. Fecha en zona Colombia (no UTC cloud). Drive uploads ahora reemplazan duplicados con mismo nombre. 3 reglas nuevas: R-DVV-10d (tasa > 13% → Gemini), R-DVV-20 (Cte. Cobrada canónica, M1 ≤ 13%), R-DVV-21 (brecha max opc 3-4 = 2 años en Mode B).
+**Versión:** 5.1
+**Última revisión:** 2026-05-15 PM (Multi-banco — Bancolombia incorporado). **Cambio estructural arquitectónico**: pipeline pasa de mono-banco (Davivienda) a multi-banco (Davivienda + Bancolombia) con arquitectura **"Module-per-Bank Simple" (Patrón 3)**. Davivienda intacto (sin cambios en `pipeline_davivienda.py`, `extract_davivienda_pdf.py`, `validar_extraccion_davivienda.py`). Bancolombia añadido en archivos paralelos: `pipeline_bancolombia.py`, `extract_bancolombia_pdf.py`, `validar_extraccion_bancolombia.py`. Nuevo `MOM_BANCOLOMBIA.md` v1.0 con reglas R-BCO-01..R-BCO-21 (paralelas a R-DVV-XX). `run_pipeline.sh` y `run_pipeline.bat` ahora corren ambos pipelines secuencialmente con exit code combinado. `excel_populator.py` con defensa R-BCO-05 (banco en `BANCOS_SIN_INGRESOS_REQUERIDOS` → `ingresos = 0` automático). `vision_extractor.py` con prompts por banco (`PROMPTS_POR_BANCO`) y soporte para PDFs protegidos con contraseña (Bancolombia usa cédula del titular como password).
+
+**v5.0:** 2026-05-15 AM (Jose revisó 5 Excels + retroalimentación). Cambio mayor estructural — formato filename Excel cambia de `ESTUDIO {nombre}-{fecha}.xlsx` a `ESTUDIO {nombre}-{credito_corto}-{fecha}.xlsx` para distinguir múltiples créditos del mismo cliente. Fecha en zona Colombia (no UTC cloud). Drive uploads ahora reemplazan duplicados con mismo nombre. 3 reglas nuevas: R-DVV-10d (tasa > 13% → Gemini), R-DVV-20 (Cte. Cobrada canónica, M1 ≤ 13%), R-DVV-21 (brecha max opc 3-4 = 2 años en Mode B).
 
 **v4.3:** Audit J — drive_client.py + sheets_loader.py + smoke_test_prerun.py. drive_client.py y smoke_test_prerun.py limpios. sheets_loader.py: MARCADORES_VIS extendido, SHEET_BD_NUM_COLS nueva constante.
 
@@ -345,12 +347,30 @@ Errores → nota CRM "ALERTA M2", NO bloquea upload.
 
 ---
 
-## 14. Bancos — orden de implementación
+## 14. Bancos — orden de implementación + arquitectura multi-banco
 
 - **14.1** Orden: DAVIVIENDA → BANCOLOMBIA → CAJA SOCIAL → FNA → BANCO DE BOGOTÁ → resto.
 - **14.2** Cada banco aislado en `MOM_<BANCO>.md` (banco-específico).
-- **14.3** Estado: **Davivienda OPERATIVO** (`MOM_DAVIVIENDA.md`). Bancolombia y Caja Social en cola.
-- **14.4** PDF con contraseña: decrypt("") primero, después CC candidatas. CC obligatoria solo si PDF la pide.
+- **14.3** Estado:
+  - **Davivienda OPERATIVO** (`MOM_DAVIVIENDA.md` v1.9+) desde 2026-04-25.
+  - **Bancolombia OPERATIVO** (`MOM_BANCOLOMBIA.md` v1.0) desde 2026-05-15 PM.
+  - Caja Social / FNA / Banco de Bogotá en cola.
+- **14.4** PDF con contraseña:
+  - **Davivienda:** decrypt("") primero, después CC candidatas. CC obligatoria solo si PDF la pide.
+  - **Bancolombia:** PDFs SIEMPRE protegidos con cédula del titular (sin guiones/puntos). Pipeline pasa `cedula_fallback` de STAGING como password a pdfplumber+pypdfium2+Gemini Vision. Ver R-BCO-02.
+- **14.5** **Arquitectura Multi-Banco — "Module-per-Bank Simple" (Patrón 3) — 2026-05-15:**
+  - Cada banco tiene 3 archivos paralelos en `sprint_1/`:
+    - `pipeline_<banco>.py` — orquestador E2E
+    - `extract_<banco>_pdf.py` — extractor pdfplumber (regex)
+    - `validar_extraccion_<banco>.py` — validador M1
+  - `MOM_<BANCO>.md` en raíz documenta reglas R-<BCO>-XX banco-específicas.
+  - Módulos agnósticos (compartidos): `proponedor_plazos.py`, `excel_populator.py`, `hubspot_client.py`, `drive_client.py`, `oauth_drive.py`, `vision_extractor.py`, `reglas_negocio.py`, `config_reglas.py`, `sheets_loader.py`, `validar_excel_generado.py`.
+  - `vision_extractor.py` tiene `PROMPTS_POR_BANCO = {"DAVIVIENDA": ..., "BANCOLOMBIA": ...}` y `extraer_con_vision(pdf, banco, password)` selecciona prompt y password.
+  - `run_pipeline.sh` / `run_pipeline.bat` corre `pipeline_davivienda.py` (PASO 2a) y `pipeline_bancolombia.py` (PASO 2b) secuencialmente, con exit code combinado (falla si cualquiera falla).
+  - Cada pipeline filtra su propio STAGING vía `BANCO.lower() in banco`. No hay cruce de datos.
+  - **Por qué Patrón 3 y no Strategy ABC ahora:** con solo 2 bancos, la abstracción prematura paga ~2x el costo de la duplicación; cuando lleguemos a 3+ bancos (Caja Social/FNA/Bogotá) re-evaluar refactor a `pipeline_utils.py` o estructura por carpetas.
+  - **Por qué Davivienda no se tocó:** mantener riesgo de regresión en 0 — el pipeline DVV lleva 3 semanas estable en cloud.
+- **14.6** **Defensa R-BCO-05** en `excel_populator.crear_estudio`: si `datos.banco.upper() in BANCOS_SIN_INGRESOS_REQUERIDOS` → forzar `datos.ingresos = 0`. Defensa en profundidad — `pipeline_bancolombia.py` ya lo setea; el populator lo refuerza para evitar bug futuro si algún call-path olvida la pre-condición.
 
 ---
 
@@ -526,5 +546,5 @@ Instrucción:
 
 ---
 
-**FIN MASTER_RULES v5.0**
+**FIN MASTER_RULES v5.1**
 **Próxima revisión:** cuando se sume otro banco o cambie política transversal.

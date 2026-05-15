@@ -214,6 +214,80 @@ Para cambios que implican borrar regla de doc canónico, registrar aquí la regl
 
 ## 2026-05-15
 
+- **[2026-05-15 PM] BANCOLOMBIA INCORPORADO — Pipeline multi-banco operativo (Patrón 3 Module-per-Bank):**
+
+  Jose pidió arrancar Bancolombia en paralelo con Davivienda hoy mismo. Cloud
+  Routines mañana 9:00 GMT-5 procesará ambos. Davivienda **intacto** —
+  cero modificaciones a su pipeline / extractor / validador.
+
+  **Decisiones arquitectónicas (confirmadas por AskUserQuestion):**
+  - Misma plantilla `PESOS.xlsx`; Bancolombia fuerza `ingresos = 0` (R-BCO-05)
+  - Arquitectura **plana "Module-per-Bank Simple" (Patrón 3)** — archivos
+    paralelos en `sprint_1/`, NO carpetas ni ABC Strategy. Refactor a
+    `pipeline_utils.py` se difiere a cuando llegue el 3er banco.
+
+  **Archivos NUEVOS creados:**
+  - `MOM_BANCOLOMBIA.md` v1.0 — reglas R-BCO-01..R-BCO-21 (paralelas a
+    R-DVV-XX). Documenta password-protected PDFs, mapeo de campos, FRECH
+    detection ("Valor subsidio Gobierno"), Vision fallback obligatorio
+    para PDFs escaneados, tabla "Movimientos Último Periodo".
+  - `sprint_1/extract_bancolombia_pdf.py` (~270 líneas) — parser
+    pdfplumber con regex Bancolombia. Reutiliza `_limpiar_num`,
+    `_buscar` de extract_davivienda. Saldo se extrae del header de
+    tabla (NO de "Observaciones" — bug detectado en testing con
+    MARISOL). Probado OK con 2 PDFs reales (MARISOL $152M, YANINE
+    $42M). PDF ANYI confirmado como escaneado → Vision fallback
+    necesario.
+  - `sprint_1/validar_extraccion_bancolombia.py` (~115 líneas) —
+    M1 validator. R-BCO-20 implementado: tasa > 13% → ERROR (probable
+    confusión con Tasa Mora cobrada). `ingresos > 0` ahora es WARNING
+    (esperado = 0 por R-BCO-05).
+  - `sprint_1/pipeline_bancolombia.py` (clone adaptado, ~1413 líneas)
+    — orquestador E2E Bancolombia. Edits clave: `BANCO = "BANCOLOMBIA"`,
+    R-DVV-07 (proyección 6ª cuota) skip silencioso (Davivienda-only),
+    post-construcción de datos fuerza `datos.ingresos = 0`, Vision
+    recibe `banco="BANCOLOMBIA"` y `password=cedula_fallback`.
+
+  **Archivos MODIFICADOS (mínimos):**
+  - `sprint_1/vision_extractor.py` — `EXTRACTION_PROMPT` renombrado
+    a `EXTRACTION_PROMPT_DAVIVIENDA`. Nuevo
+    `EXTRACTION_PROMPT_BANCOLOMBIA` con ejemplos MARISOL/YANINE.
+    Dict `PROMPTS_POR_BANCO`. Función `_get_prompt(banco)`. Las
+    funciones `_call_gemini_vision`, `extraer_con_vision`, y
+    `_pdf_to_png_bytes` ahora aceptan parámetros `banco` y `password`
+    (este último se pasa a `pdfium.PdfDocument(..., password=...)`).
+  - `sprint_1/excel_populator.py` — import
+    `BANCOS_SIN_INGRESOS_REQUERIDOS`. Defensa R-BCO-05 en
+    `crear_estudio`: si `datos.banco.upper() in BANCOS_SIN_ING` y
+    `datos.ingresos != 0` → log + force `datos.ingresos = 0`.
+    Defensa en profundidad sobre lo que pipeline_bancolombia ya hace.
+  - `run_pipeline.sh` — PASO 1a (DVV listar) → 1b (BCO listar) →
+    2a (DVV pipeline) → 2b (BCO pipeline). Exit code combinado
+    `$((RC2A | RC2B))` — falla si cualquiera falla.
+  - `run_pipeline.bat` — mismo flujo multi-banco; exit code combinado
+    con cmd-script logic (`if not 0 → set RC`).
+  - `MASTER_RULES.md` v5.0 → **v5.1**. §14 Bancos expandido a "orden
+    + arquitectura multi-banco" — agregadas §14.5 (Patrón 3 detallado)
+    y §14.6 (defensa R-BCO-05 en populator). Header y footer
+    actualizados.
+  - `ESTADO_PROYECTO.md` v2.2 → **v2.3**. Bancolombia 🟡 → 🟢
+    OPERATIVO (smoke pendiente). Hito 2026-05-15 PM agregado.
+    Roadmap actualizado.
+
+  **Tests:**
+  - `test_fase2.py` 16/16 PASS (golden Davivienda intacto)
+  - `pytest sprint_1/tests/` 51/51 PASS
+  - `maintenance --dry-run` anom_drift = 0
+  - Imports OK: `extract_bancolombia_pdf`, `validar_extraccion_bancolombia`,
+    `vision_extractor`, `pipeline_bancolombia`, `excel_populator`
+
+  **Pendiente operativo:**
+  - Mañana 9:00 GMT-5 Pipeline AM corre primer multi-banco real
+  - Si Bancolombia falla, diagnóstico con logs cloud (`_logs/scheduled_*.txt`)
+  - SARA Davivienda re-procesa en mismo run (R-DVV-10c con días_mora=3)
+
+  **Plan maestro guardado en** `C:\Users\JOSE A\.claude\plans\concurrent-knitting-taco.md`
+
 - **[2026-05-15 PLAN ANTHROPIC Max → Pro: Mantenimiento PM pausado permanente:**
 
   Jose cambió de plan Anthropic Max (~15 ejecuciones/día) a Pro (5/día). Con las
