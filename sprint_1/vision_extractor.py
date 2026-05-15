@@ -57,6 +57,7 @@ from config_reglas import (  # noqa: E402
     GCP_PROJECT as DEFAULT_PROJECT,
     GCP_LOCATION as DEFAULT_LOCATION,
     MAX_OUTPUT_TOKENS_VISION,
+    VISION_MAX_PAGES,
 )
 
 
@@ -135,7 +136,7 @@ def _vertex_client():
 # PDF -> IMAGENES
 # ============================================================
 
-def _pdf_to_png_bytes(pdf_path: Path, max_pages: int = 2) -> list:
+def _pdf_to_png_bytes(pdf_path: Path, max_pages: int = VISION_MAX_PAGES) -> list:
     """Convierte primeras `max_pages` paginas del PDF a PNG bytes.
     Usa pypdfium2 si esta disponible (sin poppler), sino pdf2image.
     """
@@ -401,7 +402,7 @@ def extraer_con_vision(pdf_path: Path, base: dict = None,
 
     Si `base` es None, retorna solo los datos de Vision normalizados.
     """
-    imgs = _pdf_to_png_bytes(pdf_path, max_pages=2)
+    imgs = _pdf_to_png_bytes(pdf_path, max_pages=VISION_MAX_PAGES)
     vision = _call_gemini_vision(imgs, model=model)
     if base is None:
         return _merge_with_base({}, vision)

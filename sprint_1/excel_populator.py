@@ -14,6 +14,14 @@ from dataclasses import dataclass
 from xml.etree import ElementTree as ET
 from copy import deepcopy
 
+# 2026-05-14: import del template canonico de naming (era literal hardcoded).
+# Fuente unica para mantener consistencia entre crear_estudio() y M2 validator.
+try:
+    from config_reglas import EXCEL_NAMING_TEMPLATE
+except ImportError:
+    # Fallback defensivo (tests aislados sin sys.path al sprint_1).
+    EXCEL_NAMING_TEMPLATE = "ESTUDIO {nombre}-{fecha}.xlsx"
+
 # Namespace del spreadsheetML
 NS = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
 NS_R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'
@@ -732,7 +740,8 @@ class ExcelPopulator:
 
         nombre_upper = datos.nombre.upper().strip()
         # Naming canonico (Jose 2026-04-17): guion medio entre nombre y fecha
-        filename = f"ESTUDIO {nombre_upper}-{fecha}.xlsx"
+        # 2026-05-14: usar EXCEL_NAMING_TEMPLATE de config_reglas (anti-drift).
+        filename = EXCEL_NAMING_TEMPLATE.format(nombre=nombre_upper, fecha=fecha)
         output_path = os.path.join(carpeta_salida, filename)
         os.makedirs(carpeta_salida, exist_ok=True)
 

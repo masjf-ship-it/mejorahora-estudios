@@ -116,6 +116,10 @@ DEFAULT_GEMINI_MODEL = "gemini-2.5-pro"  # Jose: NO bajar a flash sin autorizaci
 GCP_PROJECT = "mejorahora-automations"
 GCP_LOCATION = "us-central1"
 MAX_OUTPUT_TOKENS_VISION = 8192  # Subido desde 2048 tras truncado Fernando
+# 2026-05-14: paginas a procesar del PDF cuando se llama Vision.
+# Davivienda usa 2 paginas (pagina 1 = resumen, pagina 2 = detalle por concepto).
+# Si un banco futuro usa mas paginas, ajustar o parametrizar por banco.
+VISION_MAX_PAGES = 2
 
 # ============================================================
 # STAGING / SHEETS

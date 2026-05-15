@@ -214,6 +214,40 @@ Para cambios que implican borrar regla de doc canónico, registrar aquí la regl
 
 ## 2026-05-14
 
+- **[2026-05-14 — audit I excel_populator.py + vision_extractor.py (paralelo a revisión Jose):**
+
+  Mientras Jose revisa los 16 Excels disponibles, audit de 2 módulos no
+  completamente cubiertos antes. Cambios de drift sin tocar lógica productiva.
+
+  **I1. `EXCEL_NAMING_TEMPLATE` drift latente eliminado:**
+  - `config_reglas.py:176` definía `EXCEL_NAMING_TEMPLATE = "ESTUDIO {nombre}-{fecha}.xlsx"`
+  - `excel_populator.py:735` hardcodeaba el mismo string como f-string literal
+  - Si cambia uno y no el otro → bug silencioso (M2 validator no atraparía
+    porque su check de filename usa regex tolerante)
+  - Fix: import al top + usar `EXCEL_NAMING_TEMPLATE.format(nombre=, fecha=)`
+  - Fallback defensivo si import falla (tests aislados)
+
+  **I2. `VISION_MAX_PAGES` centralizado:**
+  - Antes hardcoded `max_pages: int = 2` en 2 lugares de `vision_extractor.py`
+    (definición y caller)
+  - Si Davivienda algún día tuviera más páginas relevantes (raro pero posible),
+    cambiar 1 lugar y olvidar el otro = bug
+  - Nueva constante `VISION_MAX_PAGES = 2` en `config_reglas.py` junto a las
+    demás constantes Vertex AI
+  - Cero cambio funcional, solo anti-drift
+
+  **Verificación Drive §4.2:** SSL local roto en Python 3.14 (sin certifi). No
+  bloqueante — Jose verifica visualmente abriendo la carpeta. 16 Excels esperados.
+
+  **Tests post:**
+  - `test_fase2.py` 16/16 PASS ✅
+  - `pytest sprint_1/tests/` 50/50 PASS ✅
+  - `maintenance --dry-run` anom_drift = 0 ✅
+
+  **Bumps:**
+  - MASTER_RULES v4.0 → v4.1
+  - ESTADO_PROYECTO §0 alineado
+
 - **[2026-05-14 CAMBIO ESTRUCTURAL MAYOR — Jose feedback caso ALVARO MAHECHA]:**
 
   Jose pidió cambio de proceso para casos REVISION_MANUAL (no se podía

@@ -1,7 +1,9 @@
 # MASTER_RULES — MejorAhora SAS · Reglas Generales del Proyecto
 
-**Versión:** 4.0
-**Última revisión:** 2026-05-14 (Jose feedback caso ALVARO MAHECHA + cambios de proceso revisión manual). Cambios estructurales mayores:
+**Versión:** 4.1
+**Última revisión:** 2026-05-14 (Audit excel_populator.py + vision_extractor.py mientras Jose revisa 16 Excels): `EXCEL_NAMING_TEMPLATE` ya estaba en config_reglas pero excel_populator.py:735 lo duplicaba como literal — drift latente eliminado, ahora usa la constante. Nueva constante `VISION_MAX_PAGES = 2` en config_reglas (antes hardcoded en 2 lugares de vision_extractor.py).
+
+**v4.0:** Jose feedback caso ALVARO MAHECHA + cambios de proceso revisión manual. Cambios estructurales mayores:
   1. **R-DVV-11 evoluciona** de "abortar sin Excel" a "auto-retry con Gemini Vision + generar Excel siempre" (MOM_DAVIVIENDA §R-DVV-11 actualizada).
   2. **Pestaña renombrada** `STAGING` → `GENERADOS` (config_reglas.SHEET_PESTANA_DESTINO + Apps Script + listar_pendientes). Jose renombra en el Sheet manualmente DESPUÉS del deploy.
   3. **Estados nuevos en GENERADOS columna G**: `pre-generado` (todo OK pdfplumber), `pre-generado, gemini` (Gemini intervino), `REVISION_MANUAL: ... (gemini)` (alerta persiste tras retry). El estado `Excel generado` ahora significa "revisado y aprobado por analista 1".
@@ -518,5 +520,5 @@ Instrucción:
 
 ---
 
-**FIN MASTER_RULES v4.0**
+**FIN MASTER_RULES v4.1**
 **Próxima revisión:** cuando se sume otro banco o cambie política transversal.
