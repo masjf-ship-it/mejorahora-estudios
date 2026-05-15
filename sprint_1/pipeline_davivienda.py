@@ -266,16 +266,41 @@ def clasificar_credito(credito: str) -> str:
 # EXTRACCION HIBRIDA (pdfplumber + Vision fallback)
 # ============================================================
 
+def _seguros_todos_cero(datos: dict) -> bool:
+    """R-DVV-10b (2026-05-14): True si los 3 seguros del extracto leidos por
+    pdfplumber estan en $0. Davivienda hipotecario tiene seguro de vida
+    obligatorio por ley deudores -> probabilidad ~0 de que sea real. Si es 0
+    todo, es bug de pdfplumber (caso SARA: cliente en mora, "Valores Aplicados"
+    todos en 0 porque la cuota no se pago, pero el seguro AGREGADO esta en otra
+    seccion del PDF que pdfplumber no captura).
+    """
+    if not isinstance(datos, dict):
+        return False
+    v = float(datos.get("seguro_vida", 0) or 0)
+    i = float(datos.get("seguro_incendio", 0) or 0)
+    t = float(datos.get("seguro_terremoto", 0) or 0)
+    return v == 0 and i == 0 and t == 0
+
+
+def _esta_en_mora(datos: dict) -> bool:
+    """R-DVV-10c (2026-05-14): True si el extracto indica dias en mora > 0.
+    Extractos en mora tienen estructura distinta (cuota mes vs cuota total, valores
+    aplicados en 0 si la cuota no se pago) -> pdfplumber se confunde. Forzar Gemini.
+    """
+    if not isinstance(datos, dict):
+        return False
+    return float(datos.get("dias_mora", 0) or 0) > 0
+
+
 def extraer_pdf_hibrido(pdf_path: Path, cedula_fallback: str = "") -> dict:
     """Intenta pdfplumber, si faltan campos criticos cae a Vision.
 
+    2026-05-14: ampliada con R-DVV-10b (seguros=0 todos) y R-DVV-10c (dias_mora>0)
+    para forzar Gemini cuando hay señales de extracción pobre, antes de procesar.
+
     Trackea cual extractor produjo los datos finales en `datos["_extractor_uso"]`:
       - "pdfplumber" : pdfplumber solo, sin Vision
-      - "gemini"     : Vision intervino (fallback total o por campos vacios)
-
-    Este tracking se usa rio abajo para:
-      - Anotar el estado en GENERADOS (col G) como "pre-generado, gemini"
-      - Decidir si auto-retry con Vision tiene sentido cuando R-DVV-11 dispara
+      - "gemini"     : Vision intervino (fallback total, campos vacios, seguros=0, o mora)
     """
     extractor_uso = "pdfplumber"
     try:
@@ -285,8 +310,20 @@ def extraer_pdf_hibrido(pdf_path: Path, cedula_fallback: str = "") -> dict:
         print(f"  [extract] pdfplumber fallo: {e}. Usando Vision directo.")
         extractor_uso = "gemini"  # fallback total
 
+    # Razones para forzar Gemini (cada una documentada como regla MOM_DAVIVIENDA):
+    razones_gemini = []
     if vision_extractor.necesita_fallback(datos):
-        print("  [extract] Campos criticos vacios -> Claude Vision fallback")
+        razones_gemini.append("campos criticos vacios")
+    if _seguros_todos_cero(datos):
+        razones_gemini.append("R-DVV-10b: seguros=0 todos (improbable en hipotecario)")
+    if _esta_en_mora(datos):
+        razones_gemini.append(
+            f"R-DVV-10c: dias_mora={datos.get('dias_mora', 0)} > 0 "
+            f"(estructura PDF distinta en extractos con mora)"
+        )
+
+    if razones_gemini and extractor_uso != "gemini":
+        print(f"  [extract] Disparando Vision por: {' + '.join(razones_gemini)}")
         try:
             datos = vision_extractor.extraer_con_vision(pdf_path, base=datos)
             extractor_uso = "gemini"
@@ -1090,7 +1127,16 @@ def procesar_cliente(cfg, gc, drive, hs, ws_staging, idx, row: dict, dry_run: bo
             else:
                 print(f"  [DIF.SIMULA-CHECK] OK: ${dif_sim_final:,.0f} dentro tolerancia ±$70k")
         except Exception as exc:
-            print(f"  [DIF.SIMULA-CHECK] WARN: no se pudo validar ({exc})")
+            # 2026-05-14 (caso SARA VIVIANA): el except silenciaba excepciones reales
+            # que dejaban el cliente con Excel pero datos malos. Ahora el WARN trae
+            # contexto completo y se agrega a notas_crm para que el analista vea.
+            import traceback as _tb
+            print(f"  [DIF.SIMULA-CHECK] WARN: no se pudo validar ({type(exc).__name__}: {exc})")
+            _tb.print_exc()
+            resultado.setdefault("notas_crm", []).append(
+                f"ALERTA: DIF.SIMULA check fallo con excepcion ({type(exc).__name__}). "
+                f"Revisar manualmente — el cliente puede tener datos inconsistentes."
+            )
 
         # Step 7b: Regla 9.4 (proponer plazos)
         print("  [regla 9.4] proponiendo plazos...")

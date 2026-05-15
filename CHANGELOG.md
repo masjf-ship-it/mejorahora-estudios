@@ -214,6 +214,57 @@ Para cambios que implican borrar regla de doc canónico, registrar aquí la regl
 
 ## 2026-05-14
 
+- **[2026-05-14 — R-DVV-10b + R-DVV-10c (Jose feedback caso SARA VIVIANA en mora):**
+
+  Jose revisó Excel de SARA VIVIANA CAYCEDO JARA (crédito 570909310001066-7) y
+  detectó 3 errores: cuota $669k (real $650k), tasa 9.10% (real 9.50%), seguros
+  todos $0 (real seguros total $163,626 en sección "Nuevo Saldo del Crédito").
+
+  **Causa raíz:** SARA está en mora **3 días**. Eso cambia estructura del PDF:
+  - "Valores Aplicados del Periodo" muestra $0 en seguros (cuota no se pagó completa)
+  - "Valor Cuota Mes" vs "Valor Cuota Total" difieren (cuota normal vs cuota+mora)
+  - Seguros REALES están en otra sección ("Nuevo Saldo → Seguros: $163,626")
+  - pdfplumber usa regex rígidos sobre "Aplicados" → captura los $0
+  - Como ningún campo crítico quedó vacío, Vision fallback NO se activaba
+
+  **Fix implementado:**
+
+  **R-DVV-10b**: en hipotecarios Davivienda, si los 3 seguros (vida + incendio +
+  terremoto) están en `$0` después de pdfplumber → forzar re-extracción con Gemini
+  Vision ANTES de procesar. Razón: seguro de vida obligatorio por ley deudores en
+  hipotecarios. Probabilidad ~0 de 3 ceros legítimos.
+
+  **R-DVV-10c**: si `dias_mora > 0` → forzar Gemini siempre. Los extractos en mora
+  tienen estructura distinta que pdfplumber no maneja bien.
+
+  **Mejor logging R-DVV-11**: el `except Exception` silenciaba excepciones reales
+  (probablemente lo que pasó con SARA — el cálculo `_capital_intereses_simulador`
+  pudo lanzar excepción con datos malos → se silenció → Excel se generó igual sin
+  el aborto que R-DVV-11 debió hacer). Ahora el WARN incluye el tipo de excepción,
+  traceback, y agrega ALERTA a notas_crm visible para el analista.
+
+  **Funciones helper agregadas en `pipeline_davivienda.py`:**
+  - `_seguros_todos_cero(datos) -> bool`
+  - `_esta_en_mora(datos) -> bool`
+
+  Integradas en `extraer_pdf_hibrido` junto con la lógica existente
+  `vision_extractor.necesita_fallback`. Mensaje de log indica claramente qué
+  regla disparó el retry.
+
+  **Impacto esperado en clientes futuros:**
+  - Todos los extractos en mora pasarán por Gemini desde el inicio → estructura
+    correcta detectada por LLM semántico
+  - Casos atípicos donde pdfplumber dice "seguros=0 todos" → Gemini retry catches
+  - Costo extra: ~$0.05 USD por cliente que dispare la regla. A volumen actual
+    (~10/día, ~30% con alguna anomalía) = ~$5 USD/mes adicionales
+
+  **Próximo paso:** re-procesar SARA con `--force --nombre SARA` para validar.
+
+  **Bumps:**
+  - MOM_DAVIVIENDA v1.7 → v1.8
+  - MASTER_RULES v4.1 → v4.2
+  - ESTADO_PROYECTO §0 alineado
+
 - **[2026-05-14 — audit I excel_populator.py + vision_extractor.py (paralelo a revisión Jose):**
 
   Mientras Jose revisa los 16 Excels disponibles, audit de 2 módulos no

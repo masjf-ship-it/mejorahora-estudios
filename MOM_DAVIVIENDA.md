@@ -1,5 +1,5 @@
 # MOM_DAVIVIENDA — Master Operating Manual · Banco Davivienda
-**Versión:** 1.7 · 2026-05-14 (R-DVV-11 evoluciona: auto-retry con Gemini + genera Excel siempre, no aborta. Jose feedback caso ALVARO MAHECHA donde pdfplumber leyó mal plazo_pendiente.)
+**Versión:** 1.8 · 2026-05-14 (R-DVV-10b y R-DVV-10c añadidas — caso SARA VIVIANA: cliente en mora con seguros todos $0 leídos mal por pdfplumber. Forzar Gemini cuando: (a) los 3 seguros = $0 o (b) días_mora > 0. Además mejor logging del except en R-DVV-11 para evitar silenciar fallos de cálculo.)
 **Específico de Davivienda. Para reglas generales del proyecto: ver `MASTER_RULES.md`.**
 
 > **Precedencia:** banco-específico (este archivo) gana sobre general (MASTER_RULES) en caso de contradicción.
@@ -107,6 +107,28 @@ Nota CRM en columna L STAGING: "Proyección a 6ª cuota — política banco. Cli
 
 ### R-DVV-10 — M1 bloquea seguro_vida=0 con incendio>0
 Si Vision devuelve `seguro_vida=0 AND seguro_incendio>0` → M1 ERROR → REVISION_MANUAL. En extractos hipotecarios casi siempre existe seguro de vida (obligatorio).
+
+### R-DVV-10b — Seguros todos $0 → forzar Gemini (2026-05-14, caso SARA VIVIANA)
+En hipotecarios Davivienda **todos** los seguros (vida + incendio + terremoto) en `$0` después de pdfplumber → forzar re-extracción con Gemini Vision **ANTES** de pasar el cliente al resto del pipeline.
+
+**Razón:** Davivienda hipotecario tiene seguro de vida obligatorio por ley deudores. Probabilidad de 3 ceros legítimos ≈ 0%. Si los 3 están en cero, casi siempre es bug de pdfplumber:
+- Patrones regex rígidos no encuentran los seguros en la estructura del PDF
+- El extracto puede tener los seguros en una sección distinta (ej. "Nuevo Saldo de su Crédito → Seguros: $X")
+- En extractos con mora, "Valores Aplicados" muestra $0 porque la cuota no se pagó completa
+
+**Implementación:** Función helper `_seguros_todos_cero(datos)` en `pipeline_davivienda.py`, evaluada dentro de `extraer_pdf_hibrido` ANTES de procesar.
+
+### R-DVV-10c — Días de mora > 0 → forzar Gemini (2026-05-14, caso SARA VIVIANA)
+Si el extracto reporta `dias_mora > 0` → forzar re-extracción con Gemini Vision **siempre**, sin importar el resto de los datos.
+
+**Razón:** Los extractos con mora tienen estructura distinta:
+- Aparece "Valor en Mora" y "Valor Cuota Total" además de "Valor Cuota Mes"
+- "Valores Aplicados del Periodo" puede estar en $0 porque la cuota no se pagó completa
+- Los totales de seguros pueden venir en bloques distintos del extracto sin mora
+
+pdfplumber se confunde sistemáticamente con extractos en mora. Gemini, siendo un LLM con visión semántica, maneja la variación estructural correctamente.
+
+**Implementación:** Función helper `_esta_en_mora(datos)` en `pipeline_davivienda.py`, evaluada dentro de `extraer_pdf_hibrido` ANTES de procesar.
 
 ### R-DVV-11 — DIF.SIMULA tolerancia ±$70k post-9.3 (con auto-retry Gemini)
 Después de Regla 9.3, recalcular DIF.SIMULA. Si `|DIF.SIMULA| > $70k`:
@@ -370,5 +392,5 @@ py sprint_1\test_fase2.py > diag_fase2.txt 2>&1
 
 ---
 
-**FIN MOM_DAVIVIENDA v1.7**
+**FIN MOM_DAVIVIENDA v1.8**
 **Próxima revisión:** cuando aparezca caso nuevo no cubierto por R-DVV-01..18 o cambie política Davivienda.
