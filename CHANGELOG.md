@@ -214,6 +214,35 @@ Para cambios que implican borrar regla de doc canónico, registrar aquí la regl
 
 ## 2026-05-14
 
+- **[2026-05-14 — audit J: drive_client + sheets_loader + smoke_test_prerun (paralelo a revisión SARA):**
+
+  **J1. `drive_client.py` (293L):** Audit limpio. Constantes ya centralizadas
+  (DRIVE_FOLDER_*, SHEET_BD_ID), patrones bien estructurados, normalización de
+  nombres robusta. Sin cambios.
+
+  **J2. `sheets_loader.py` (272L):** 2 drifts detectados y eliminados:
+  - `MARCADORES_VIS` tenía un set LOCAL de 3 valores (`VIS`, `VIS DAVIVIENDA`,
+    `VIVIENDA INTERES SOCIAL`) pero `reglas_negocio.MARCADORES_VIS` solo tenía 2.
+    Drift sutil — si VIS aparece en sheets_loader pero no en proponedor_plazos,
+    los ratios podrían no aplicar consistentemente. Fix: extender la constante
+    centralizada a 3 valores, eliminar set local.
+  - `42` (columnas BD) hardcoded en línea 179 y también en Apps Script
+    (`NUM_COLS = 42`). Si BD cambia su esquema, 2 lugares para actualizar.
+    Fix: nueva constante `SHEET_BD_NUM_COLS = 42` en `config_reglas`.
+
+  **J3. `smoke_test_prerun.py` (231L):** Audit limpio. Estructura clara con
+  checks individuales fail-fast, soporte JSON output, bootstrap cloud al inicio.
+  Sin cambios.
+
+  **Tests post:**
+  - `test_fase2.py` 16/16 PASS ✅
+  - `pytest sprint_1/tests/` 50/50 PASS ✅
+  - `maintenance --dry-run` anom_drift = 0 ✅
+
+  **Bumps:**
+  - MASTER_RULES v4.2 → v4.3
+  - ESTADO_PROYECTO §0 alineado
+
 - **[2026-05-14 — R-DVV-10b + R-DVV-10c (Jose feedback caso SARA VIVIANA en mora):**
 
   Jose revisó Excel de SARA VIVIANA CAYCEDO JARA (crédito 570909310001066-7) y

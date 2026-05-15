@@ -60,6 +60,9 @@ BANCOS_SIN_INGRESOS_REQUERIDOS = {
 MARCADORES_VIS = {
     "VIS",
     "VIS DAVIVIENDA",
+    "VIVIENDA INTERES SOCIAL",
+    # 2026-05-14: VIVIENDA INTERES SOCIAL agregado (estaba duplicado en
+    # sheets_loader.py::detectar_vis con set local). Fuente unica ahora aqui.
 }
 
 # ============================================================

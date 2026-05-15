@@ -126,6 +126,9 @@ VISION_MAX_PAGES = 2
 # ============================================================
 SHEET_BD_ID = "1_9FUAo8cSrLDWAkJlNoy29Cmyh9ojXwnW6zbvhGsESA"  # ÚNICA BD VÁLIDA
 SHEET_BD_NOMBRE = "BASE PARA ESTUDIOS OK"
+# 2026-05-14: número de columnas del esquema BD (estaba duplicado en
+# sheets_loader.py:179 y automation/apps_script/staging_approval_workflow.gs:29).
+SHEET_BD_NUM_COLS = 42
 # 2026-05-14 (Jose feedback): pestana renombrada STAGING -> GENERADOS para reflejar
 # que el pipeline GENERA estudios; el analista 1 luego los revisa antes de imprimir
 # el PDF. El cambio debe hacerse en CODIGO primero (este push) y DESPUES en el Sheet

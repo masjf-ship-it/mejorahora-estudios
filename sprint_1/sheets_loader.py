@@ -19,6 +19,17 @@ from typing import Optional
 # Importar el dataclass existente para no duplicar
 from excel_populator import DatosClienteExcel
 
+# 2026-05-14: deduplicar MARCADORES_VIS (estaba con set local de 3 valores;
+# reglas_negocio tenia 2 — drift). Y SHEET_BD_NUM_COLS (era literal 42).
+try:
+    from reglas_negocio import MARCADORES_VIS as _MARCADORES_VIS
+except ImportError:
+    _MARCADORES_VIS = {"VIS", "VIS DAVIVIENDA", "VIVIENDA INTERES SOCIAL"}
+try:
+    from config_reglas import SHEET_BD_NUM_COLS as _NUM_COLS_BD
+except ImportError:
+    _NUM_COLS_BD = 42
+
 
 # ============================================================
 # MAPEO 42 COLUMNAS REALES (Sheet "davivienda" 2026-04-16)
@@ -148,11 +159,13 @@ def parse_entero(valor) -> int:
 
 
 def detectar_vis(actividad_economica: str, tipo: str = "") -> bool:
-    """True si la actividad indica VIS (ratio 39%)."""
+    """True si la actividad indica VIS (ratio 39%).
+
+    Fuente unica de marcadores VIS: reglas_negocio.MARCADORES_VIS (2026-05-14).
+    """
     upper = (actividad_economica or "").upper().strip()
     tipo_upper = (tipo or "").upper().strip()
-    marcadores = {"VIS", "VIS DAVIVIENDA", "VIVIENDA INTERES SOCIAL"}
-    for m in marcadores:
+    for m in _MARCADORES_VIS:
         if m in upper or m in tipo_upper:
             return True
     return False
@@ -175,8 +188,9 @@ def cargar_filas(csv_path: str) -> list[dict]:
         for raw in reader:
             if not raw or not any(raw):
                 continue
-            # Padding si la fila tiene menos columnas
-            while len(raw) < 42:
+            # Padding si la fila tiene menos columnas (esquema 42 cols).
+            # 2026-05-14: _NUM_COLS_BD viene de config_reglas.SHEET_BD_NUM_COLS.
+            while len(raw) < _NUM_COLS_BD:
                 raw.append("")
             fila = {}
             for nombre, idx in COL.items():
