@@ -1,7 +1,25 @@
 # Cloud Routines — Setup paso a paso para Jose
 
-**Versión:** 2.0 · 2026-05-12
+**Versión:** 2.1 · 2026-05-15
 **Pre-requisito:** repo en GitHub con la rama `main` ya pusheada (✅ hecho).
+
+## ⚠️ IMPORTANTE — Cambio de plan Anthropic Max → Pro (2026-05-15)
+
+Plan **Pro** otorga **5 ejecuciones/día** (no 15 como Max). Configuración ajustada:
+
+| Rutina | Estado | Razón |
+|---|---|---|
+| MejorAhora Pipeline AM (9:00 GMT-5) | ✅ Activa diaria | Crítica — procesa pendientes mañana |
+| MejorAhora Pipeline PM (20:30 GMT-5) | ✅ Activa diaria | Crítica — procesa pendientes tarde |
+| MejorAhora Mantenimiento AM (7:00 GMT-5) | ✅ Activa diaria | Drift checker + reporte 1x/día |
+| **MejorAhora Mantenimiento PM (19:00 GMT-5)** | 🔴 **PAUSADA permanente** | Liberar cuota para Pipeline PM y manuales |
+| MejorAhora Metricas Semanal (Lunes 9:00) | ✅ Activa semanal | 1x/semana |
+
+**Cuota diaria con esta config:**
+- Martes-Domingo: 3 programadas / 5 → **2 manuales disponibles**
+- Lunes: 4 programadas / 5 → **1 manual disponible**
+
+Si necesitas re-procesar un cliente con `--force` o disparar manual, ten en cuenta esta cuota.
 
 Esta guía te lleva de cero a 5 routines corriendo. Tiempo estimado: 30-45 min
 (la primera vez tomó ~90 min con 7 smoke tests porque descubrimos 6 fixes

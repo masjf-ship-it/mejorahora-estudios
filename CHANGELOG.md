@@ -214,6 +214,28 @@ Para cambios que implican borrar regla de doc canónico, registrar aquí la regl
 
 ## 2026-05-15
 
+- **[2026-05-15 PLAN ANTHROPIC Max → Pro: Mantenimiento PM pausado permanente:**
+
+  Jose cambió de plan Anthropic Max (~15 ejecuciones/día) a Pro (5/día). Con las
+  5 rutinas activas previas (4 diarias + 1 semanal), los lunes consumían 5/5 sin
+  margen para manuales, y otros días 4/5 con apenas 1 manual disponible.
+
+  **Decisión operativa (opción A confirmada por Jose):**
+  - **MejorAhora Mantenimiento PM (19:00 GMT-5) → PAUSADA permanente**
+  - Mant AM (7:00) sigue diario — drift checker + reporte 1x/día es suficiente
+  - Pipeline AM + PM siguen diarios — sin riesgo operativo
+  - Routine 5 Métricas Semanal sigue (lunes 9:00)
+
+  **Nueva cuota:**
+  - Martes-Domingo: 3 programadas / 5 → 2 manuales disponibles
+  - Lunes: 4 programadas / 5 → 1 manual disponible
+
+  **Trade-off aceptado:** drift checker tarda hasta 24h en detectar problemas
+  (vs 12h con Mant AM + PM). Aceptable porque el pipeline tiene pre-commit hook
+  + tests + smoke_test_prerun como defensas adicionales.
+
+  **`_planning/cloud_routines_setup.md` v2.0 → v2.1** con nueva config.
+
 - **[2026-05-15 PLAN MAESTRO — Jose revisó 5 Excels + retroalimentación documento:**
 
   Jose revisó manualmente los 5 Excels disponibles (LUZ ADRIANA, JULLY MARCELA,
