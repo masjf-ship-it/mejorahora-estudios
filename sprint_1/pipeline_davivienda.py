@@ -292,6 +292,23 @@ def _esta_en_mora(datos: dict) -> bool:
     return float(datos.get("dias_mora", 0) or 0) > 0
 
 
+def _tasa_atipica(datos: dict) -> bool:
+    """R-DVV-10d (2026-05-15): True si tasa_cobrada > 13% (probable confusion con
+    Tasa Mora). Davivienda Cte. Cobrada típica 6%-13%. Tasa Mora 14-20%. Si
+    pdfplumber regex matchea mal (caso historico antes de fix \\s* post-Cte.\\.)
+    y captura "14.25" en lugar de "9.50", forzamos retry con Gemini.
+
+    `tasa_cobrada` en datos del PDF viene en formato porcentaje (9.50, no 0.0950).
+    """
+    if not isinstance(datos, dict):
+        return False
+    try:
+        t = float(datos.get("tasa_cobrada", 0) or 0)
+    except (TypeError, ValueError):
+        return False
+    return t > 13.0
+
+
 def extraer_pdf_hibrido(pdf_path: Path, cedula_fallback: str = "") -> dict:
     """Intenta pdfplumber, si faltan campos criticos cae a Vision.
 
@@ -320,6 +337,11 @@ def extraer_pdf_hibrido(pdf_path: Path, cedula_fallback: str = "") -> dict:
         razones_gemini.append(
             f"R-DVV-10c: dias_mora={datos.get('dias_mora', 0)} > 0 "
             f"(estructura PDF distinta en extractos con mora)"
+        )
+    if _tasa_atipica(datos):
+        razones_gemini.append(
+            f"R-DVV-10d: tasa_cobrada={datos.get('tasa_cobrada')} > 13% "
+            f"(probable Mora confundida con Cte. Cobrada)"
         )
 
     if razones_gemini and extractor_uso != "gemini":

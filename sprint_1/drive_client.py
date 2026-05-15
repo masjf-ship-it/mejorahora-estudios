@@ -244,8 +244,19 @@ MIME_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 def upload_to_folder(drive, local_path: Path, folder_id: str = DRIVE_FOLDER_ANALISTAS_RW,
                       nombre_destino: Optional[str] = None,
-                      mime_type: str = MIME_XLSX) -> dict:
+                      mime_type: str = MIME_XLSX,
+                      reemplazar_existente: bool = True) -> dict:
     """Sube archivo local a carpeta destino en Drive.
+
+    2026-05-15 (Jose feedback caso 2 Excels mismo credito): por defecto, si ya
+    existe un archivo con el mismo nombre en `folder_id`, reemplaza su contenido
+    (drive.files().update) en vez de crear duplicado. Para forzar duplicados
+    explicitamente, pasar `reemplazar_existente=False`.
+
+    Esto elimina el problema de "2 Excels del mismo cliente con fechas distintas"
+    que pasaba cuando el pipeline corre 2x el mismo dia (manual + programado).
+    Combinado con el filename que incluye credito_corto, multiples creditos del
+    mismo cliente conviven correctamente y solo se reemplaza el del MISMO credito.
 
     Retorna: {'id', 'name', 'webViewLink'}
     """
@@ -255,8 +266,36 @@ def upload_to_folder(drive, local_path: Path, folder_id: str = DRIVE_FOLDER_ANAL
     if not local_path.exists():
         raise FileNotFoundError(f"No existe archivo local {local_path}")
 
+    name_final = nombre_destino or local_path.name
+
+    if reemplazar_existente:
+        # Buscar archivo con mismo nombre en folder. Escapar nombre para query.
+        name_q = name_final.replace("\\", "\\\\").replace("'", "\\'")
+        q = (
+            f"'{folder_id}' in parents "
+            f"and name='{name_q}' "
+            "and trashed=false"
+        )
+        existing = drive.files().list(
+            q=q,
+            fields="files(id, name)",
+            supportsAllDrives=True,
+            includeItemsFromAllDrives=True,
+        ).execute().get("files", [])
+        if existing:
+            file_id = existing[0]["id"]
+            media = MediaFileUpload(str(local_path), mimetype=mime_type, resumable=False)
+            updated = drive.files().update(
+                fileId=file_id,
+                media_body=media,
+                fields="id, name, webViewLink",
+                supportsAllDrives=True,
+            ).execute()
+            return updated
+
+    # Crear nuevo (no existia previo o reemplazar_existente=False)
     body = {
-        "name": nombre_destino or local_path.name,
+        "name": name_final,
         "parents": [folder_id],
     }
     media = MediaFileUpload(str(local_path), mimetype=mime_type, resumable=False)

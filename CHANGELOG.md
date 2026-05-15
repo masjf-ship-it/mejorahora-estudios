@@ -212,6 +212,78 @@ Para cambios que implican borrar regla de doc canónico, registrar aquí la regl
 
 ---
 
+## 2026-05-15
+
+- **[2026-05-15 PLAN MAESTRO — Jose revisó 5 Excels + retroalimentación documento:**
+
+  Jose revisó manualmente los 5 Excels disponibles (LUZ ADRIANA, JULLY MARCELA,
+  YESSICA, DARIS PAOLA OK + SARA pendiente) y entregó `RETROALIMENTACION IA.docx`
+  con 5 problemas sistémicos. Cada uno con decisión confirmada por AskUserQuestion.
+
+  **Plan completo guardado en** `C:\Users\JOSE A\.claude\plans\concurrent-knitting-taco.md`
+
+  **Fix 2 — Tasa siempre "Cte. Cobrada" (no Mora):**
+  - `extract_davivienda_pdf.py:187-198`: regex actualizado de
+    `r"Cte\.?Cobrada"` a `r"Cte\.?\s*Cobrada"` (con `\s*` post-punto).
+    El PDF Davivienda imprime "Tasa Interés Cte. Cobrada" con espacio entre
+    "Cte." y "Cobrada"; el regex anterior fallaba en algunos extractos →
+    `tasa_cobrada` quedaba en 0 → caía a otra tasa errada.
+  - Nueva constante `M1_TASA_EA_MAX_PROBABLE_MORA = 0.13` en `config_reglas.py`.
+  - M1 (`validar_extraccion_davivienda.py`) ahora bloquea `tasa_ea > 13%`
+    con mensaje explícito "Probable confusion con Tasa Mora".
+  - Nueva función `_tasa_atipica(datos) -> bool` en `pipeline_davivienda.py` +
+    integración como **R-DVV-10d**: fuerza Gemini cuando pdfplumber leyó tasa > 13%.
+  - **MOM_DAVIVIENDA**: nuevas reglas **R-DVV-10d** y **R-DVV-20** documentadas.
+  - Test `test_m1_rango_tasa_ea` actualizado: caso `0.50` ahora espera `ok=False`.
+
+  **Fix 3 — Filename con credito_corto + fecha Colombia + reemplazar duplicados:**
+  - `config_reglas.EXCEL_NAMING_TEMPLATE` cambió:
+    - Antes: `"ESTUDIO {nombre}-{fecha}.xlsx"`
+    - Ahora: `"ESTUDIO {nombre}-{credito_corto}-{fecha}.xlsx"`
+  - Nueva constante `TZ_COLOMBIA = "America/Bogota"`.
+  - `excel_populator.py`:
+    - Nueva función `_ultimos_4_credito(credito_id)` — extrae los 4 dígitos
+      antes del guión verificador (ej. `570909310001066-7` → `1066`).
+    - `crear_estudio` usa `zoneinfo.ZoneInfo(TZ_COLOMBIA)` con fallback
+      manual offset -5h para Python < 3.9. Resuelve el bug de "Excel con
+      filename del 15 cuando se generó el 14" (causa: cloud UTC).
+  - `drive_client.upload_to_folder` + `oauth_drive.upload_to_folder_oauth`:
+    nuevo parámetro `reemplazar_existente: bool = True`. Si ya existe un
+    archivo con el mismo nombre en el folder, usa `drive.files().update()`
+    para reemplazar contenido en vez de crear duplicado.
+  - `validar_excel_generado.py`: regex actualizado para aceptar formato
+    nuevo `-CCCC-DD.MM.AA.xlsx` Y retrocompat con formato viejo (warning).
+  - **Migración:** NO migrar Excels viejos. Solo aplica a generaciones nuevas.
+
+  **Fix 4 — Brecha opc 3 vs opc 4 en Mode B (puente intermedio):**
+  - `proponedor_plazos._proponer_mixto_viable`: después de construir las 6
+    opciones, valida `opc3 - opc4 > GAP_MAX_OPC_3_4_MODE_B` (2 años default).
+    Si excede, inserta un "puente" en posición 4 con `round((opc3+opc4)/2, 1)`
+    respetando `piso_agresivas` (Ley 546).
+  - Nueva constante `GAP_MAX_OPC_3_4_MODE_B = 2.0` en `config_reglas.py`.
+  - **MOM_DAVIVIENDA**: nueva regla **R-DVV-21** documentada.
+
+  **Fix 5 (PENDIENTE) — Saldo capital con decimales:**
+  - Hipótesis: el float se preserva en Python pero la celda B15 del template
+    PESOS.xlsx tiene formato sin decimales → display redondea.
+  - **Acción de Jose:** abrir un Excel y verificar la barra de fórmulas de B15.
+
+  **Fix 1 (POST-DEPLOY) — Re-procesar SARA:**
+  - SARA está en GENERADOS con estado `Pendiente`. Próximo Pipeline AM manual
+    recogerá a SARA → R-DVV-10b/c/d → Gemini → datos correctos → Excel limpio.
+
+  **Tests post:**
+  - `test_fase2.py` 16/16 PASS ✅
+  - `pytest sprint_1/tests/` 51/51 PASS ✅ (era 50, +1 caso parametrizado)
+  - `maintenance --dry-run` anom_drift = 0 ✅
+
+  **Bumps:**
+  - MOM_DAVIVIENDA v1.8 → v1.9
+  - **MASTER_RULES v4.3 → v5.0** (cambio mayor: formato filename)
+  - ESTADO_PROYECTO §0 alineado
+
+---
+
 ## 2026-05-14
 
 - **[2026-05-14 — audit J: drive_client + sheets_loader + smoke_test_prerun (paralelo a revisión SARA):**

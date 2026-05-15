@@ -1,7 +1,9 @@
 # MASTER_RULES — MejorAhora SAS · Reglas Generales del Proyecto
 
-**Versión:** 4.3
-**Última revisión:** 2026-05-14 (Audit J — drive_client.py + sheets_loader.py + smoke_test_prerun.py). drive_client.py y smoke_test_prerun.py limpios, sin cambios. sheets_loader.py: 2 drifts eliminados — `MARCADORES_VIS` extendido en reglas_negocio (de 2 a 3 valores, ahora incluye "VIVIENDA INTERES SOCIAL" que estaba duplicado como set local); nueva constante `SHEET_BD_NUM_COLS = 42` en config_reglas (antes hardcoded en 2 lugares — sheets_loader.py:179 y apps_script:29).
+**Versión:** 5.0
+**Última revisión:** 2026-05-15 (Jose revisó 5 Excels + retroalimentación). **Cambio mayor estructural** — formato filename Excel cambia de `ESTUDIO {nombre}-{fecha}.xlsx` a `ESTUDIO {nombre}-{credito_corto}-{fecha}.xlsx` para distinguir múltiples créditos del mismo cliente. Fecha en zona Colombia (no UTC cloud). Drive uploads ahora reemplazan duplicados con mismo nombre. 3 reglas nuevas: R-DVV-10d (tasa > 13% → Gemini), R-DVV-20 (Cte. Cobrada canónica, M1 ≤ 13%), R-DVV-21 (brecha max opc 3-4 = 2 años en Mode B).
+
+**v4.3:** Audit J — drive_client.py + sheets_loader.py + smoke_test_prerun.py. drive_client.py y smoke_test_prerun.py limpios. sheets_loader.py: MARCADORES_VIS extendido, SHEET_BD_NUM_COLS nueva constante.
 
 **v4.2:** caso SARA VIVIANA — bug pdfplumber en extractos con mora. 2 reglas nuevas R-DVV-10b y R-DVV-10c (MOM_DAVIVIENDA): forzar Gemini cuando (a) los 3 seguros = $0 o (b) días_mora > 0. Mejor logging del except en R-DVV-11.
 
@@ -524,5 +526,5 @@ Instrucción:
 
 ---
 
-**FIN MASTER_RULES v4.3**
+**FIN MASTER_RULES v5.0**
 **Próxima revisión:** cuando se sume otro banco o cambie política transversal.

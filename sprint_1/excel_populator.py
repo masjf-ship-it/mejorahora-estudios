@@ -16,11 +16,38 @@ from copy import deepcopy
 
 # 2026-05-14: import del template canonico de naming (era literal hardcoded).
 # Fuente unica para mantener consistencia entre crear_estudio() y M2 validator.
+# 2026-05-15: agregada TZ_COLOMBIA para fechas en zona Colombia (no UTC cloud).
 try:
-    from config_reglas import EXCEL_NAMING_TEMPLATE
+    from config_reglas import EXCEL_NAMING_TEMPLATE, TZ_COLOMBIA
 except ImportError:
     # Fallback defensivo (tests aislados sin sys.path al sprint_1).
-    EXCEL_NAMING_TEMPLATE = "ESTUDIO {nombre}-{fecha}.xlsx"
+    EXCEL_NAMING_TEMPLATE = "ESTUDIO {nombre}-{credito_corto}-{fecha}.xlsx"
+    TZ_COLOMBIA = "America/Bogota"
+
+
+def _ultimos_4_credito(credito_id: str) -> str:
+    """Extrae los ultimos 4 digitos del credito ANTES del guion verificador.
+
+    Ejemplos:
+        "570909310001066-7"   -> "1066"
+        "600101910029936-7"   -> "9936"
+        "5700000123456"       -> "3456"  (sin guion)
+        "XXX-INVALIDO"        -> "XXXX"  (fallback si no hay digitos parseables)
+
+    Razon (Jose 2026-05-15): un cliente puede tener varios creditos. El filename
+    necesita distinguirlos. Los ultimos 4 digitos del numero estable (antes del
+    digito verificador post-guion) son unicos entre multiples creditos del mismo
+    cliente y suficientes para identificacion visual rapida.
+    """
+    s = str(credito_id or "").strip()
+    if not s:
+        return "XXXX"
+    # Match: secuencia larga de digitos seguida opcionalmente por "-N"
+    m = re.search(r"(\d+)(?:-\d+)?$", s)
+    if not m:
+        return "XXXX"
+    parte_estable = m.group(1)
+    return parte_estable[-4:] if len(parte_estable) >= 4 else parte_estable.rjust(4, "0")
 
 # Namespace del spreadsheetML
 NS = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
@@ -736,12 +763,29 @@ class ExcelPopulator:
 
     def crear_estudio(self, datos: DatosClienteExcel, carpeta_salida: str, fecha: str | None = None) -> str:
         if fecha is None:
-            fecha = datetime.now().strftime("%d.%m.%y")
+            # 2026-05-15 (Jose feedback): zona Colombia (no UTC). En cloud el
+            # pipeline corre UTC; sin TZ, fecha del filename podia salir un dia
+            # adelante si corrio tarde Colombia (20:30 GMT-5 = 01:30 UTC siguiente).
+            try:
+                from zoneinfo import ZoneInfo  # Python 3.9+
+                fecha = datetime.now(ZoneInfo(TZ_COLOMBIA)).strftime("%d.%m.%y")
+            except ImportError:
+                # Fallback Python < 3.9: usar offset manual -5h
+                from datetime import timezone, timedelta
+                fecha = datetime.now(timezone(timedelta(hours=-5))).strftime("%d.%m.%y")
 
         nombre_upper = datos.nombre.upper().strip()
-        # Naming canonico (Jose 2026-04-17): guion medio entre nombre y fecha
+        # 2026-05-15: credito_corto = ultimos 4 digitos del credito (antes del
+        # guion verificador) para distinguir multiples creditos del mismo cliente.
+        credito_corto = _ultimos_4_credito(datos.credito_id)
+        # Naming canonico (Jose 2026-04-17 + 2026-05-15): formato
+        # "ESTUDIO {nombre}-{credito_corto}-{fecha}.xlsx"
         # 2026-05-14: usar EXCEL_NAMING_TEMPLATE de config_reglas (anti-drift).
-        filename = EXCEL_NAMING_TEMPLATE.format(nombre=nombre_upper, fecha=fecha)
+        filename = EXCEL_NAMING_TEMPLATE.format(
+            nombre=nombre_upper,
+            credito_corto=credito_corto,
+            fecha=fecha,
+        )
         output_path = os.path.join(carpeta_salida, filename)
         os.makedirs(carpeta_salida, exist_ok=True)
 

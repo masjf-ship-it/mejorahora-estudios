@@ -96,7 +96,10 @@ def test_m1_falla_seguro_vida_cero_con_incendio_positivo():
 
 @pytest.mark.parametrize("tasa,esperado_ok", [
     (0.0001, True),    # tasa muy pequeña pero positiva
-    (0.50, True),      # decimal alto pero válido
+    (0.12, True),      # 12% = típica Davivienda Cte. Cobrada, dentro de rango
+    # 2026-05-15 (R-DVV-20): tasa > 13% ahora dispara M1 ERROR (probable Mora).
+    # Antes 0.50 era "decimal alto pero valido" (solo WARN). Ya no.
+    (0.50, False),     # 50% > 13% -> probable Tasa Mora confundida, M1 ERROR
     (0.0, False),      # tasa 0
     (1.5, False),      # > 1 sin normalizar
 ])

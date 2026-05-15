@@ -60,16 +60,47 @@ def get_oauth_drive():
 
 def upload_to_folder_oauth(drive, local_path: Path, folder_id: str,
                             nombre_destino: str = None,
-                            mime_type: str = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet") -> dict:
-    """Sube archivo a Drive usando el drive OAuth user (propiedad del humano)."""
+                            mime_type: str = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            reemplazar_existente: bool = True) -> dict:
+    """Sube archivo a Drive usando el drive OAuth user (propiedad del humano).
+
+    2026-05-15 (Jose feedback): por defecto, si ya existe un archivo con el mismo
+    nombre en `folder_id`, reemplaza su contenido (drive.files().update) en vez
+    de crear duplicado. Espejo de drive_client.upload_to_folder con misma logica.
+    """
     from googleapiclient.http import MediaFileUpload
 
     local_path = Path(local_path)
     if not local_path.exists():
         raise FileNotFoundError(f"No existe archivo local {local_path}")
 
+    name_final = nombre_destino or local_path.name
+
+    if reemplazar_existente:
+        name_q = name_final.replace("\\", "\\\\").replace("'", "\\'")
+        q = (
+            f"'{folder_id}' in parents "
+            f"and name='{name_q}' "
+            "and trashed=false"
+        )
+        existing = drive.files().list(
+            q=q,
+            fields="files(id, name)",
+            supportsAllDrives=True,
+            includeItemsFromAllDrives=True,
+        ).execute().get("files", [])
+        if existing:
+            file_id = existing[0]["id"]
+            media = MediaFileUpload(str(local_path), mimetype=mime_type, resumable=False)
+            return drive.files().update(
+                fileId=file_id,
+                media_body=media,
+                fields="id, name, webViewLink",
+                supportsAllDrives=True,
+            ).execute()
+
     body = {
-        "name": nombre_destino or local_path.name,
+        "name": name_final,
         "parents": [folder_id],
     }
     media = MediaFileUpload(str(local_path), mimetype=mime_type, resumable=False)

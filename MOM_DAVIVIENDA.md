@@ -1,5 +1,5 @@
 # MOM_DAVIVIENDA — Master Operating Manual · Banco Davivienda
-**Versión:** 1.8 · 2026-05-14 (R-DVV-10b y R-DVV-10c añadidas — caso SARA VIVIANA: cliente en mora con seguros todos $0 leídos mal por pdfplumber. Forzar Gemini cuando: (a) los 3 seguros = $0 o (b) días_mora > 0. Además mejor logging del except en R-DVV-11 para evitar silenciar fallos de cálculo.)
+**Versión:** 1.9 · 2026-05-15 (3 reglas nuevas tras revisión Jose 5 estudios: R-DVV-10d (tasa > 13% → Gemini), R-DVV-20 (tasa canónica Cte. Cobrada siempre, M1 valida ≤ 13%), R-DVV-21 (brecha max opc 3 vs 4 en Mode B = 2 años, insertar puente). Además fixes: regex tasa con `\s*` post-punto, filename con `credito_corto`, zoneinfo Colombia para evitar fecha futura, reemplazar duplicados en upload Drive.)
 **Específico de Davivienda. Para reglas generales del proyecto: ver `MASTER_RULES.md`.**
 
 > **Precedencia:** banco-específico (este archivo) gana sobre general (MASTER_RULES) en caso de contradicción.
@@ -117,6 +117,35 @@ En hipotecarios Davivienda **todos** los seguros (vida + incendio + terremoto) e
 - En extractos con mora, "Valores Aplicados" muestra $0 porque la cuota no se pagó completa
 
 **Implementación:** Función helper `_seguros_todos_cero(datos)` en `pipeline_davivienda.py`, evaluada dentro de `extraer_pdf_hibrido` ANTES de procesar.
+
+### R-DVV-10d — Tasa cobrada atípica > 13% → forzar Gemini (2026-05-15)
+Si `datos["tasa_cobrada"] > 13.0` (en formato porcentaje, no decimal) después de pdfplumber → forzar Gemini.
+
+**Razón:** Davivienda Cte. Cobrada típica 6%-13%. Tasa Mora suele ser 14-20%. Si pdfplumber matcheó mal y capturó "14.25" en lugar de "9.50" (caso histórico antes del fix `\s*` post-punto en regex), Gemini lee semánticamente y diferencia ambas tasas.
+
+**Implementación:** función helper `_tasa_atipica(datos) -> bool` en `pipeline_davivienda.py`, evaluada dentro de `extraer_pdf_hibrido`.
+
+### R-DVV-20 — Tasa canónica del estudio: SIEMPRE Cte. Cobrada (2026-05-15)
+La tasa que se usa para todos los cálculos del estudio (simulador, opciones de plazos, ingresos requeridos) es SIEMPRE `Tasa Interés Cte. Cobrada` del extracto Davivienda. Nunca:
+- ❌ `Tasa Interés Cte. Pactada` (esta es la tasa pactada original; puede diferir de la actual con/sin FRECH)
+- ❌ `Tasa Interés Mora Cobrada` (tasa penal, solo se cobra cuando hay mora)
+- ❌ `Tasa de Cobertura` (subsidio FRECH si aplica)
+
+**Validación M1:** si `datos.tasa_ea > 0.13` (13%) → M1 ERROR. Davivienda raramente tiene Cte. Cobrada > 13%. Constante `M1_TASA_EA_MAX_PROBABLE_MORA = 0.13` en `config_reglas.py`.
+
+**Regex en `extract_davivienda_pdf.py`:** usar `r"Tasa\s+Inter[eé]s\s+Cte\.?\s*Cobrada\s+([\d.,]+)"` (con `\s*` post-punto) para tolerar variantes de espaciado del PDF.
+
+### R-DVV-21 — Brecha máxima opc 3 vs opc 4 en Mode B = 2 años (2026-05-15)
+En Mode B mixto_viable de `proponedor_plazos`, la transición entre la última opción factible (opc 3) y la primera opción agresiva (opc 4) puede ser abrupta si `plazo_min_factible` está lejos del `abono_efectivo`.
+
+**Regla:** si `opc3 - opc4 > GAP_MAX_OPC_3_4_MODE_B` (default 2 años), insertar un "puente" intermedio:
+```
+puente = round((opc3 + opc4) / 2.0, 1)
+opciones[3] = max(puente, piso_agresivas)
+```
+La serie resultante se re-dedup y re-rellena para mantener 6 opciones únicas ordenadas descendente.
+
+**Constante:** `GAP_MAX_OPC_3_4_MODE_B = 2.0` en `config_reglas.py`.
 
 ### R-DVV-10c — Días de mora > 0 → forzar Gemini (2026-05-14, caso SARA VIVIANA)
 Si el extracto reporta `dias_mora > 0` → forzar re-extracción con Gemini Vision **siempre**, sin importar el resto de los datos.
@@ -392,5 +421,5 @@ py sprint_1\test_fase2.py > diag_fase2.txt 2>&1
 
 ---
 
-**FIN MOM_DAVIVIENDA v1.8**
+**FIN MOM_DAVIVIENDA v1.9**
 **Próxima revisión:** cuando aparezca caso nuevo no cubierto por R-DVV-01..18 o cambie política Davivienda.

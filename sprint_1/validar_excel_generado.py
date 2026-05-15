@@ -25,7 +25,9 @@ del Excel ya escrito (la cuota se reconstituye por columnas). El control
 de coherencia 9.3 vive en M1 (validar_extraccion_davivienda) antes del
 write, y en la suma vs cuota que la propia formula B5 reproduce.
 
-Filename: ESTUDIO <NOMBRE MAYUSCULAS>-DD.MM.AA.xlsx (feedback_naming_excel_estudios)
+Filename: ESTUDIO <NOMBRE MAYUSCULAS>-<CCCC>-DD.MM.AA.xlsx (2026-05-15 Jose feedback).
+CCCC = ultimos 4 digitos del credito (antes del guion verificador). Permite
+distinguir multiples creditos del mismo cliente.
 
 Uso programatico:
     from validar_excel_generado import validar_excel
@@ -64,7 +66,9 @@ def validar_excel(path_xlsx, datos) -> tuple[bool, list[str], list[str]]:
         errores.append(f"Excel no existe: {path}")
         return False, errores, warnings
 
-    # 1) Naming: ESTUDIO <NOMBRE>-DD.MM.AA.xlsx
+    # 1) Naming: ESTUDIO <NOMBRE>-<CCCC>-DD.MM.AA.xlsx
+    # 2026-05-15 (Jose feedback): nuevo formato con credito_corto (4 digitos)
+    # para distinguir multiples creditos del mismo cliente.
     nombre_esperado_fragment = (datos.nombre or "").strip()
     name = path.name
     if not name.startswith("ESTUDIO "):
@@ -73,8 +77,19 @@ def validar_excel(path_xlsx, datos) -> tuple[bool, list[str], list[str]]:
         warnings.append(
             f"nombre cliente '{nombre_esperado_fragment}' no aparece en filename: {name}"
         )
-    if not re.search(r"-\d{2}\.\d{2}\.\d{2}\.xlsx$", name):
-        warnings.append(f"filename sin sufijo fecha DD.MM.AA: {name}")
+    # Patron nuevo: -CCCC-DD.MM.AA.xlsx
+    # Patron viejo (retrocompat): -DD.MM.AA.xlsx
+    patron_nuevo = re.search(r"-(\d{4})-(\d{2}\.\d{2}\.\d{2})\.xlsx$", name)
+    patron_viejo = re.search(r"-(\d{2}\.\d{2}\.\d{2})\.xlsx$", name)
+    if not patron_nuevo and not patron_viejo:
+        warnings.append(
+            f"filename sin sufijo fecha valido (esperado -CCCC-DD.MM.AA.xlsx): {name}"
+        )
+    elif patron_viejo and not patron_nuevo:
+        # Excel del flujo viejo (sin credito_corto). Aceptable retrocompat pero avisar.
+        warnings.append(
+            f"filename formato viejo (sin credito_corto). Se acepta retrocompat: {name}"
+        )
 
     try:
         wb = load_workbook(str(path), data_only=False, keep_vba=False)

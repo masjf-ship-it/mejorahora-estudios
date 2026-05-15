@@ -50,6 +50,8 @@ from config_reglas import (
     SALDO_THRESHOLD_TIER,
     # Regla 9.4 — paso de saltos en serie
     SALTO_ABONO_SERIE,
+    # R-DVV-21 (2026-05-15) — brecha max entre opc 3 y opc 4 en Mode B
+    GAP_MAX_OPC_3_4_MODE_B,
 )
 
 
@@ -777,6 +779,29 @@ def _proponer_mixto_viable(
     # Si la dedup redujo, volver a rellenar
     while len(opciones) < 6:
         opciones.append(float(piso_agresivas))
+
+    # R-DVV-21 (2026-05-15, Jose feedback brecha opc 3 vs 4): si la transición
+    # entre la ultima factible (opc 3) y la primera agresiva (opc 4) excede
+    # GAP_MAX_OPC_3_4_MODE_B años, insertar un "puente" intermedio en posicion 4.
+    # Antes: factibles [13, 12.5, 12] + agresivas [5, 4, 3] -> brecha 12-5 = 7 años.
+    # Despues: el puente = (12+5)/2 = 8.5 -> serie suavizada [13, 12.5, 12, 8.5, 5, 4].
+    # Nota: tras el ajuste, la serie se re-dedup y re-rellena. El puente respeta
+    # piso_agresivas (no baja por debajo del minimo legal Ley 546).
+    if len(opciones) >= 4:
+        opc3 = opciones[2]
+        opc4 = opciones[3]
+        brecha = opc3 - opc4
+        if brecha > GAP_MAX_OPC_3_4_MODE_B:
+            puente = round((opc3 + opc4) / 2.0, 1)
+            puente = max(puente, float(piso_agresivas))
+            if puente not in opciones and abs(puente - opc3) > 0.1 and abs(puente - opc4) > 0.1:
+                opciones[3] = puente
+                opciones = sorted(set(opciones), reverse=True)
+                while len(opciones) < 6:
+                    opciones.append(float(piso_agresivas))
+                opciones = sorted(set(opciones), reverse=True)[:6]
+                while len(opciones) < 6:
+                    opciones.append(float(piso_agresivas))
 
     # §3c (2026-04-27): piso abono tiered en Modo B.
     # MODO A ya lo aplica (linea ~460). MODO B no lo tenia -> BUG.

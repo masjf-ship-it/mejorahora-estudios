@@ -44,6 +44,10 @@ TOLERANCIA_M1_WARN = 70_000.0       # > $70k = warning
 TOLERANCIA_M1_ERROR = 500_000.0     # > $500k = error (salvo R-DVV-06 detectado)
 M1_CUOTA_MAX_SANITY = 10_000_000.0  # warning si cuota > $10M (caso atípico)
 M1_TASA_EA_WARN_MAX = 0.35          # warning si tasa > 35% EA (sospechosa)
+# 2026-05-15 (Jose feedback caso SARA): Tasa Cte. Cobrada Davivienda típica 6%-13%.
+# Tasa Mora suele ser 14-20%. Si tasa_ea > 13% probablemente pdfplumber leyó Mora
+# en lugar de Cobrada → M1 ERROR + forzar Gemini retry (R-DVV-10d en pipeline).
+M1_TASA_EA_MAX_PROBABLE_MORA = 0.13
 
 # R-DVV-06 G2 — discrepancia seguros aplicados vs +Seguros inferior
 UMBRAL_G2_DISCREPANCIA_SEGUROS = 10_000.0
@@ -72,6 +76,14 @@ PLAZO_CHICO_MESES = 60  # < 60m permite usar diff $70k
 #   (a) construir la serie por defecto
 #   (b) shift incremental cuando Opc1 no ahorra >=1 año vs plazo pendiente
 SALTO_ABONO_SERIE = 100_000.0
+
+# 2026-05-15 (Jose feedback caso brecha opc 3 vs 4): en Mode B mixto_viable las
+# primeras 3 opciones son factibles (cuota cabe en ingresos*1.10) y las ultimas 3
+# son agresivas (cercanas al abono pedido). Si la opcion 3 (ultima factible) y la
+# opcion 4 (primera agresiva) difieren mucho en años de plazo, el salto en abono
+# se siente abrupto. Cuando la brecha excede este umbral, se inserta un "puente"
+# (plazo intermedio) reemplazando la opcion 4. Ver R-DVV-21 en MOM_DAVIVIENDA.
+GAP_MAX_OPC_3_4_MODE_B = 2.0  # años
 
 # Granularidad operativa proponedor (NO floor legal — ver Ley 546)
 PLAZO_MINIMO_PRACTICO_ANOS = 0.5  # = 6 meses
@@ -180,7 +192,17 @@ PESOS_TEMPLATE_REL_PATH = "PESOS.xlsx"  # relativo a PROJECT_ROOT
 # ============================================================
 # NAMING / FORMATO
 # ============================================================
-EXCEL_NAMING_TEMPLATE = "ESTUDIO {nombre}-{fecha}.xlsx"  # nombre MAYUSCULAS, fecha DD.MM.AA
+# 2026-05-15 (Jose feedback caso doble Excel mismo cliente): incluir últimos 4
+# digitos del credito en filename para distinguir multiples creditos del mismo
+# cliente. Antes filename era "ESTUDIO {nombre}-{fecha}.xlsx" -> colision si un
+# cliente tenia 2+ creditos. Ahora "ESTUDIO {nombre}-{credito_corto}-{fecha}.xlsx".
+# `credito_corto` = ultimos 4 digitos antes del guion verificador (ej "570909310001066-7"
+# -> "1066"). Ver excel_populator.crear_estudio para extraccion.
+EXCEL_NAMING_TEMPLATE = "ESTUDIO {nombre}-{credito_corto}-{fecha}.xlsx"
+# Zona horaria del usuario (Colombia GMT-5). Cuando el pipeline corre en cloud
+# UTC, datetime.now() retorna UTC -> filename con fecha futura si corrió tarde
+# Colombia (20:30 GMT-5 = 01:30 UTC del dia siguiente). Solucion: usar zoneinfo.
+TZ_COLOMBIA = "America/Bogota"
 
 # ============================================================
 # TERMINOLOGÍA OBLIGATORIA (Ley 546 / branding)

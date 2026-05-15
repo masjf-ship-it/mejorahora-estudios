@@ -36,6 +36,7 @@ try:
         TOLERANCIA_G3_SUMA_DUPLICADA,
         M1_CUOTA_MAX_SANITY,
         M1_TASA_EA_WARN_MAX,
+        M1_TASA_EA_MAX_PROBABLE_MORA,
     )
 except ImportError:
     # Fallback defensivo (tests aislados que no agregan sprint_1 al sys.path).
@@ -45,6 +46,7 @@ except ImportError:
     TOLERANCIA_G3_SUMA_DUPLICADA = 0.10
     M1_CUOTA_MAX_SANITY = 10_000_000.0
     M1_TASA_EA_WARN_MAX = 0.35
+    M1_TASA_EA_MAX_PROBABLE_MORA = 0.13
 
 
 def validar_datos_cliente(datos) -> tuple[bool, list[str], list[str]]:
@@ -87,7 +89,19 @@ def validar_datos_cliente(datos) -> tuple[bool, list[str], list[str]]:
             f"tasa_ea parece porcentaje sin normalizar: {datos.tasa_ea} "
             f"(esperado decimal 0.xxxx, ej 0.1431 para 14.31%)"
         )
+    elif datos.tasa_ea > M1_TASA_EA_MAX_PROBABLE_MORA:
+        # 2026-05-15 (R-DVV-20 + Jose feedback): tasa Cte. Cobrada Davivienda
+        # típica 6%-13%. Tasa Mora suele 14-20%. Si > 13% probable confusion
+        # pdfplumber leyendo Mora en lugar de Cobrada.
+        errores.append(
+            f"tasa_ea {datos.tasa_ea:.4f} ({datos.tasa_ea*100:.2f}%) "
+            f"> {M1_TASA_EA_MAX_PROBABLE_MORA*100:.0f}% (umbral M1). Probable confusion "
+            f"con Tasa Mora ({datos.tasa_ea*100:.2f}% atipico para Cte. Cobrada "
+            f"Davivienda; R-DVV-20)."
+        )
     elif datos.tasa_ea > M1_TASA_EA_WARN_MAX:
+        # Esta rama nunca se alcanza si TASA_MAX_PROBABLE_MORA (13%) < WARN_MAX (35%);
+        # se mantiene defensivamente por si la constante se ajusta a futuro.
         warnings.append(f"tasa_ea inusualmente alta: {datos.tasa_ea:.4f} ({datos.tasa_ea*100:.2f}%)")
 
     # -------- Plazos --------

@@ -184,11 +184,17 @@ def parse_davivienda_pdf(pdf_path: str, cedula_fallback: str = "") -> dict:
         datos["amortizacion"] = ""
 
     # Tasas (EA)
+    # 2026-05-15 (Jose feedback caso tasa Mora vs Cobrada): el regex anterior
+    # `Cte\.?Pactada` no admitia espacios entre "Cte." y "Pactada/Cobrada".
+    # Davivienda imprime "Tasa Interés Cte. Cobrada" con espacio post-punto.
+    # Cuando el regex no matcheaba, _buscar retornaba "0" y a veces el caller
+    # caia a una tasa errada (Mora 14.25% o Pactada 12.29%). El `\s*` post-punto
+    # permite 0+ espacios, capturando todas las variantes de espaciado del PDF.
     datos["tasa_pactada"] = _limpiar_num(_buscar(
-        r"Tasa\s+Inter[eé]s\s+Cte\.?Pactada\s+([\d.,]+)", texto, default="0"
+        r"Tasa\s+Inter[eé]s\s+Cte\.?\s*Pactada\s+([\d.,]+)", texto, default="0"
     ))
     datos["tasa_cobrada"] = _limpiar_num(_buscar(
-        r"Tasa\s+Inter[eé]s\s+Cte\.?Cobrada\s+([\d.,]+)", texto, default="0"
+        r"Tasa\s+Inter[eé]s\s+Cte\.?\s*Cobrada\s+([\d.,]+)", texto, default="0"
     ))
 
     # Tasas seguros (por millon)
