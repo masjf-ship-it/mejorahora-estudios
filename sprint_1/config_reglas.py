@@ -24,7 +24,12 @@ from pathlib import Path
 # PREFIJOS DAVIVIENDA (R-DVV-08)
 # ============================================================
 PREFIJOS_HIPOTECARIO = ("570", "571")
-PREFIJOS_LEASING = ("600",)
+# 2026-05-16 (Jose feedback caso LAURA VANNESA NORENA): credito
+# 601635600150851-9 es un Leasing Habitacional Davivienda NORMAL (vivienda).
+# Antes solo "600" -> clasificar_credito devolvia "otro" -> el pipeline
+# saltaba a LAURA con "credito no reconocido". 601 es leasing valido,
+# se procesa igual que hipotecario (R-DVV-09).
+PREFIJOS_LEASING = ("600", "601")
 BANCOS_SEXTA_CUOTA = ("DAVIVIENDA", "DAVIBANK")  # R-DVV-07
 
 # ============================================================

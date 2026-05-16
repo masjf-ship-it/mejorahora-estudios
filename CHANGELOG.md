@@ -214,6 +214,46 @@ Para cambios que implican borrar regla de doc canónico, registrar aquí la regl
 
 ## 2026-05-16
 
+- **[2026-05-16 PM] R-DVV-08: prefijo `601` agregado a leasing (caso LAURA VANNESA).**
+
+  Disparador: run multi-banco 2026-05-16. LAURA VANNESA NORENA RICARDO,
+  crédito `601635600150851-9`, salía `Skip — crédito no reconocido por
+  prefijo Davivienda válido`. `clasificar_credito` solo aceptaba leasing
+  `("600",)`. Jose confirmó: `601` = Leasing Habitacional Davivienda de
+  vivienda NORMAL → debe procesarse igual que hipotecario (R-DVV-09).
+
+  Cambios (§19):
+  - `config_reglas.PREFIJOS_LEASING`: `("600",)` → `("600", "601")`.
+  - `pipeline_davivienda.clasificar_credito`: docstring + comentario sección
+    actualizados (la lógica usa la constante, sin cambio funcional propio).
+  - `MOM_DAVIVIENDA.md` R-DVV-08 actualizado + nota caso LAURA. v1.10 → v1.11.
+  - Tests: golden 16/16 + pytest OK (ningún test fijaba PREFIJOS_LEASING).
+
+  Nota: el agente de la rutina cloud (sesión Pipeline AM) intentó este
+  fix interactivamente y falló el push (403, rama efímera). Se rehízo
+  limpio en main. Prompt de rutinas endurecido (solo ejecutar+reportar).
+
+- **[2026-05-16 PM] R-DVV-22 documentada (NO automatizada): FRECH/DIF.SIMULA sin intereses en extracto.**
+
+  Caso SARA VIVIANA CAYCEDO JARA (`570909310001066-7`): extracto con
+  FRECH (Cobertura de Tasa $228,775) y sin intereses en "Valores
+  Aplicados en Pesos". El simulador sobreestima intereses → DIF.SIMULA
+  ≈ −$237k → `REVISION_MANUAL` falso. Mismo patrón en ANYI (BCO,
+  DIF.SIMULA −$189,335).
+
+  **Regla confirmada por Jose** (solo Davivienda): cuando
+  `frech_subsidio > 0 AND interes_mensual(extracto) == 0`, al interés
+  del SIMULADOR se le resta el FRECH:
+  `DIF.SIMULA = cuota − (cap_sim + (int_sim − FRECH) + seguros)`.
+  Validado contra SARA: −$8,381 (dentro de ±$70k) vs −$237k sin corregir.
+
+  **Decisión Jose: NO automatizar aún.** SARA tenía múltiples fallos;
+  esperar más casos para confirmar generalidad antes de tocar el gate
+  Python (la plantilla PESOS.xlsx NO se toca — hash-protegida, ya
+  bank-aware con `ACTUAL!B9`=FRECH). Documentado en `MOM_DAVIVIENDA.md`
+  R-DVV-22 con números exactos para reconocer y corregir manualmente
+  si reaparece. SIN cambio de código (sin drift docs↔código).
+
 - **[2026-05-16] R-DVV-20 / R-BCO-20 v1 → v2 (REGLA DE ORO Jose): tasa alta NO bloquea si es crédito de vivienda.**
 
   **Autoridad:** Jose (dueño del negocio), instrucción directa: *"LAS TASAS

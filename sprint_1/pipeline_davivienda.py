@@ -245,11 +245,16 @@ def _staging_update(ws, row_idx: int, idx: dict, estado: str, link: str = "",
 
 
 # ============================================================
-# CLASIFICACION CREDITO (570 vs 600)
+# CLASIFICACION CREDITO (570/571 hipotecario · 600/601 leasing)
 # ============================================================
 
 def clasificar_credito(credito: str) -> str:
-    """Retorna 'hipotecario' (570/571), 'leasing' (600), o 'otro'."""
+    """Retorna 'hipotecario' (570/571), 'leasing' (600/601), o 'otro'.
+
+    2026-05-16: agregado prefijo 601 a leasing (config_reglas.PREFIJOS_LEASING)
+    tras caso LAURA VANNESA (601635600150851-9 = Leasing Habitacional normal).
+    Leasing se procesa igual que hipotecario (R-DVV-09).
+    """
     if not credito:
         return "otro"
     num = re.sub(r"[^\d]", "", credito)

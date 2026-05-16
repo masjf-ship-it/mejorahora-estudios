@@ -1,5 +1,6 @@
 # MOM_DAVIVIENDA — Master Operating Manual · Banco Davivienda
-**Versión:** 1.10 · 2026-05-16 (R-DVV-20 v2 — REGLA DE ORO Jose: tasa alta NO bloquea si es crédito de vivienda; M1 pasa de ERROR a WARNING en `tasa_ea > 13%`. Revoca el bloqueo M1 de v1 que generaba falsos positivos. R-DVV-10d retry Gemini se mantiene.)
+**Versión:** 1.11 · 2026-05-16 PM (R-DVV-08: prefijo `601` agregado a leasing — caso LAURA VANNESA. R-DVV-22: documentado workaround manual FRECH/DIF.SIMULA cuando extracto sin intereses — caso SARA, NO automatizado por decisión Jose.)
+**v1.10 · 2026-05-16:** R-DVV-20 v2 — REGLA DE ORO Jose: tasa alta NO bloquea si es crédito de vivienda; M1 pasa de ERROR a WARNING en `tasa_ea > 13%`. Revoca el bloqueo M1 de v1 que generaba falsos positivos. R-DVV-10d retry Gemini se mantiene.
 **v1.9 · 2026-05-15:** 3 reglas nuevas tras revisión Jose 5 estudios: R-DVV-10d (tasa > 13% → Gemini), R-DVV-20 (tasa canónica Cte. Cobrada siempre, M1 valida ≤ 13%), R-DVV-21 (brecha max opc 3 vs 4 en Mode B = 2 años, insertar puente). Además fixes: regex tasa con `\s*` post-punto, filename con `credito_corto`, zoneinfo Colombia para evitar fecha futura, reemplazar duplicados en upload Drive.
 **Específico de Davivienda. Para reglas generales del proyecto: ver `MASTER_RULES.md`.**
 
@@ -99,9 +100,14 @@ Nota CRM en columna L STAGING: "Proyección a 6ª cuota — política banco. Cli
 
 ### R-DVV-08 — Prefijos válidos por tipo
 - **Hipotecario:** `("570", "571")` → procesar E2E
-- **Leasing:** `("600",)` → procesar IGUAL que hipotecario (ver R-DVV-09)
+- **Leasing:** `("600", "601")` → procesar IGUAL que hipotecario (ver R-DVV-09)
 - **Consumo Garantía Hipotecaria:** `("590",)` → **NO APLICA** al flujo MejorAhora (excluir)
 - **Otros prefijos** → "Crédito no reconocido", skip
+
+> **2026-05-16 (caso LAURA VANNESA NORENA, crédito `601635600150851-9`):** se
+> agregó `601` a leasing. Antes solo `600` → el pipeline saltaba créditos `601`
+> con "crédito no reconocido". Jose confirmó: `601` = Leasing Habitacional
+> Davivienda de vivienda NORMAL. Fuente única: `config_reglas.PREFIJOS_LEASING`.
 
 ### R-DVV-09 — Leasing = Hipotecario (sin tratamiento especial)
 **Regla Jose:** Leasing habitacional (prefijo 600) se procesa **EXACTAMENTE IGUAL** que hipotecario. Mismo template, mismo proponedor, mismos honorarios. **FRECH NO es traba** — se lee del extracto y la plantilla calcula bien. **NUNCA** aplicar fórmula MIN(frech, interes) ni celdas G5/G6 (revocado 2026-04-23).
@@ -147,6 +153,52 @@ opciones[3] = max(puente, piso_agresivas)
 La serie resultante se re-dedup y re-rellena para mantener 6 opciones únicas ordenadas descendente.
 
 **Constante:** `GAP_MAX_OPC_3_4_MODE_B = 2.0` en `config_reglas.py`.
+
+### R-DVV-22 — FRECH y DIF.SIMULA cuando el extracto NO muestra intereses (⚠️ NO AUTOMATIZADO — workaround manual documentado)
+
+> **ESTADO: documentado, NO implementado en código.** El pipeline NO aplica
+> esta corrección automáticamente. Esta sección preserva la solución del caso
+> SARA para reconocer y corregir manualmente el patrón si reaparece (decisión
+> Jose 2026-05-16: analizar con más casos antes de automatizar). Si el pipeline
+> dispara `REVISION_MANUAL: DIF.SIMULA $X` en un cliente Davivienda **con FRECH
+> (Cobertura de Tasa > 0) y sin intereses en el recuadro "Valores Aplicados en
+> Pesos"**, aplicar esta regla manualmente.
+
+**Patrón:** cuando el extracto Davivienda tiene `Cobertura de Tasa (FRECH) > 0`
+**Y** el recuadro "Valores Aplicados en Pesos" **no muestra intereses
+corrientes** (el subsidio FRECH los cubrió), el simulador calcula
+`intereses_sim = saldo × tasa_mv` con la tasa completa → sobreestima los
+intereses por ~el monto del FRECH → `DIF.SIMULA` queda enorme y dispara
+`REVISION_MANUAL` falsamente.
+
+**Regla (confirmada Jose 2026-05-16):** al **interés del SIMULADOR** se le
+descuenta el FRECH para que concuerde. Davivienda únicamente:
+
+```
+condición:  frech_subsidio > 0  AND  interes_mensual (extracto) == 0
+corrección: DIF.SIMULA = cuota − (cap_sim + (int_sim − FRECH) + seguros)
+```
+
+El interés del **extracto** se deja como viene del PDF (NO se recalcula).
+
+**Caso canónico SARA VIVIANA CAYCEDO JARA** (`570909310001066-7`):
+
+| Campo | Valor |
+|---|---|
+| Cuota | $650,225 |
+| Capital simulador | $186,924 |
+| Interés simulador (bruto) | $536,831 |
+| FRECH (Cobertura de Tasa) | $228,775 |
+| Seguros | $163,626 |
+| Interés simulador efectivo | $536,831 − $228,775 = $308,056 |
+| **DIF.SIMULA corregido** | 650,225 − (186,924 + 308,056 + 163,626) = **−$8,381** ✓ dentro de ±$70k |
+| (Sin la corrección) | DIF.SIMULA ≈ −$237,156 → REVISION_MANUAL falso |
+
+**Cuándo automatizar:** cuando aparezcan más casos del patrón (Jose validará la
+generalidad). El punto de implementación sería `pipeline_davivienda.py` (gate
+DIF.SIMULA ~L1076 + retry) — NO tocar la plantilla PESOS.xlsx (sus fórmulas ya
+son bank-aware con `ACTUAL!B9`=FRECH; verificar primero si el Excel ya lo
+resuelve y solo falla el gate Python).
 
 ### R-DVV-10c — Días de mora > 0 → forzar Gemini (2026-05-14, caso SARA VIVIANA)
 Si el extracto reporta `dias_mora > 0` → forzar re-extracción con Gemini Vision **siempre**, sin importar el resto de los datos.
@@ -422,5 +474,5 @@ py sprint_1\test_fase2.py > diag_fase2.txt 2>&1
 
 ---
 
-**FIN MOM_DAVIVIENDA v1.10**
+**FIN MOM_DAVIVIENDA v1.11**
 **Próxima revisión:** cuando aparezca caso nuevo no cubierto por R-DVV-01..18 o cambie política Davivienda.

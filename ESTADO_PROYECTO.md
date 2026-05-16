@@ -9,7 +9,7 @@
 
 > **REGLAS Y REFERENCIA:** este archivo NO contiene reglas. Solo estado.
 > - Reglas generales: `MASTER_RULES.md` (v5.1)
-> - Reglas Davivienda: `MOM_DAVIVIENDA.md` (v1.10)
+> - Reglas Davivienda: `MOM_DAVIVIENDA.md` (v1.11)
 > - Reglas Bancolombia: `MOM_BANCOLOMBIA.md` (v1.1)
 > - Constantes código: `sprint_1/config_reglas.py`
 > - Cheatsheet bancos: `MANUAL_EXTRACTO_BANCOS.md`
