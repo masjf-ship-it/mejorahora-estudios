@@ -1,25 +1,30 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-pipeline_davivienda.py — MejorAhora SAS
-========================================
-Orquestador E2E autonomo para estudios Davivienda.
+pipeline_bancolombia.py — MejorAhora SAS
+=========================================
+Orquestador E2E autonomo para estudios Bancolombia (clone de
+pipeline_davivienda.py, Patron 3 Module-per-Bank). Reglas especificas
+en MOM_BANCOLOMBIA.md (R-BCO-XX). Davivienda intacto.
 
 Flujo por cliente (fila STAGING):
   1. Buscar carpeta cliente en Drive §4.1 por nombre -> PDF id
   2. Descargar PDF a tmp local
   3. HubSpot cascade (CC -> email -> nombre). Consultor OPCIONAL.
-  4. Si PDF protegido: intentar desencriptar con CC (STAGING + HubSpot).
-  5. Parsear con pdfplumber; si faltan criticos -> Claude Vision fallback
+  4. PDF SIEMPRE protegido: password = cedula del titular (R-BCO-02),
+     se pasa cedula_fallback de STAGING a pdfplumber/pypdfium2/Vision.
+  5. Parsear con pdfplumber; si faltan criticos o PDF escaneado ->
+     Claude Vision fallback (prompt Bancolombia, R-BCO-10b/c/d).
   6. Clasificar extracto: ok / INCOMPLETO / ILEGIBLE
-  7. Construir DatosClienteExcel
+  7. Construir DatosClienteExcel. R-BCO-05: ingresos = 0 (Bancolombia
+     NO exige certificacion de ingresos).
   8. Aplicar Regla 9.3 (abono extraordinario) y Regla 9.4 (proponer plazos)
-  9. ExcelPopulator.crear_estudio() -> output/ESTUDIO <NOMBRE>-DD.MM.AA.xlsx
+  9. ExcelPopulator.crear_estudio() -> estudios_generados/ESTUDIO ...xlsx
  10. Upload a Drive §4.2 (folder analistas)
  11. Actualizar STAGING: estado="Excel generado" + link drive
 
 Hard blockers (solo 4 detienen el estudio):
-  PDF_PROTEGIDO           - Encriptado y ninguna CC candidata abre
+  PDF_PROTEGIDO           - cedula_fallback vacia/incorrecta, no abre
   EXTRACTO_ILEGIBLE       - pdfplumber + Vision no extrajeron nada util
   EXTRACTO_INCOMPLETO: X  - Faltan algunos campos criticos (X = lista)
   BANCO_NO_TRABAJADO      - Filtrado upstream en listar_pendientes_hoy
@@ -27,18 +32,19 @@ Hard blockers (solo 4 detienen el estudio):
 Soft (nunca bloquean):
   consultor vacio, ingresos vacio, abono vacio -> Excel se genera igual.
 
-Fase A (hoy):
-  - Procesa Hipotecario (570/571) y Leasing Habitacional (600) IGUAL.
-  - Jose 2026-04-24: leasing = hipotecario sin ajustes especiales (R-DVV-09).
-    FRECH se lee correctamente del extracto y la plantilla maestra calcula bien.
+Notas Bancolombia:
+  - Credito formato 9NNNNNNNNNN (sin guion verificador). R-DVV-08
+    (prefijos 570/571/600) NO aplica: todo extracto es hipotecario.
+  - FRECH = "Valor subsidio Gobierno" (R-BCO-03). VIS via "VIVDA VIS".
 
 Uso:
-    py pipeline_davivienda.py                         # todos los pendientes
-    py pipeline_davivienda.py --nombre "FERNANDO..."  # un solo cliente
-    py pipeline_davivienda.py --dry-run               # sin generar Excel ni update STAGING
-    py pipeline_davivienda.py --max 3                 # limitar cantidad
+    py pipeline_bancolombia.py                         # todos los pendientes
+    py pipeline_bancolombia.py --nombre "MARISOL..."   # un solo cliente
+    py pipeline_bancolombia.py --dry-run               # sin generar Excel ni update STAGING
+    py pipeline_bancolombia.py --max 3                 # limitar cantidad
 
-Scheduled task: MejorAhora\\Pipeline Davivienda AM (DAILY 08:30)
+Scheduled: corre dentro de run_pipeline.sh/.bat PASO 2b (tras Davivienda
+PASO 2a). Tasks: MejorAhora Pipeline AM (09:00) + PM (20:30).
 """
 from __future__ import annotations
 
@@ -1229,7 +1235,14 @@ def procesar_cliente(cfg, gc, drive, hs, ws_staging, idx, row: dict, dry_run: bo
             seguros_totales=seg_tot,
             ingresos_cliente=datos.ingresos,
             banco=datos.banco,
-            es_vis=("VIS" in (datos.actividad_economica or "").upper()),
+            # 2026-05-15 (audit clone): Bancolombia detecta VIS por el plan
+            # "Plan: ... VIVDA VIS/NOVIS" del PDF (MOM_BANCOLOMBIA §3/§4), NO
+            # por actividad_economica del CRM (heuristica Davivienda heredada
+            # del clone — un cliente BCO casi nunca tiene "VIS" en ese campo
+            # libre). extract_bancolombia_pdf.py ya computa datos_pdf["es_vis"]
+            # desde "VIVDA VIS". Inerte hoy (ingresos=0 -> proponer_plazos
+            # retorna antes del ratio VIS) pero fragil; se corrige en origen.
+            es_vis=bool(datos_pdf.get("es_vis", False)),
             abono_objetivo_min=max(0, datos.abono_efectivo - 50000),
             abono_objetivo_max=datos.abono_efectivo + 50000,
             plazo_pagado_meses=plazo_pag,
@@ -1260,7 +1273,7 @@ def procesar_cliente(cfg, gc, drive, hs, ws_staging, idx, row: dict, dry_run: bo
             archivo = getattr(e, "filename", None) or str(e)
             msg = (f"EXCEL_LOCKED: Excel previo abierto en Office: {archivo}. "
                    f"Cerrar el archivo y re-correr "
-                   f"`py pipeline_davivienda.py --nombre \"{datos.nombre[:30]}\" --force`.")
+                   f"`py pipeline_bancolombia.py --nombre \"{datos.nombre[:30]}\" --force`.")
             print(f"  [excel] BLOQUEO: {msg}")
             resultado["ok"] = False
             resultado["detalle"] = msg[:200]
@@ -1335,19 +1348,19 @@ def main():
     from cloud_bootstrap import ensure_credentials_from_env, is_cloud_env
     bootstrap = ensure_credentials_from_env()
     if is_cloud_env():
-        print(f"[pipeline_davivienda] CLOUD env detected — bootstrap: {bootstrap}")
+        print(f"[pipeline_bancolombia] CLOUD env detected — bootstrap: {bootstrap}")
 
     cfg = cargar_config()
-    print(f"[pipeline_davivienda] template={cfg['template']}")
-    print(f"[pipeline_davivienda] salida={cfg['salida']}")
+    print(f"[pipeline_bancolombia] template={cfg['template']}")
+    print(f"[pipeline_bancolombia] salida={cfg['salida']}")
 
     # Integridad PESOS.xlsx: bloquea ejecucion si el template fue alterado fuera
     # del flujo de control (ver config_reglas.PESOS_TEMPLATE_SHA256).
     # 2026-05-12: verify_pesos_template importado a top-level (era inline).
     ok_template, msg_template = verify_pesos_template(PROJECT_ROOT)
-    print(f"[pipeline_davivienda] {msg_template}")
+    print(f"[pipeline_bancolombia] {msg_template}")
     if not ok_template:
-        print("[pipeline_davivienda] ABORT: template corrupto. Si el cambio fue "
+        print("[pipeline_bancolombia] ABORT: template corrupto. Si el cambio fue "
               "intencional, regenera el hash en config_reglas.py y registra el "
               "cambio en CHANGELOG.")
         return 2
@@ -1361,17 +1374,17 @@ def main():
     # fallback al SA. Bug post-mortem 2026-05-07: 14 EXCEPTION HTTP 403 históricas.
     drive_upload = None
     if not _HAS_OAUTH:
-        print("[pipeline_davivienda] FATAL: oauth_drive no disponible. Instalar/restaurar "
+        print("[pipeline_bancolombia] FATAL: oauth_drive no disponible. Instalar/restaurar "
               "credentials/oauth_token.json. Ver MOM_DAVIVIENDA §7 troubleshooting.")
         return 3
     try:
         drive_upload = get_oauth_drive()
-        print("[pipeline_davivienda] OAuth user drive activo (uploads §4.2 = humano)")
+        print("[pipeline_bancolombia] OAuth user drive activo (uploads §4.2 = humano)")
     except Exception as e:
-        print(f"[pipeline_davivienda] FATAL: OAuth no disponible ({e}).")
-        print("[pipeline_davivienda] El SA NO puede subir a §4.2 (storageQuotaExceeded en")
-        print("[pipeline_davivienda] Gmail personal). Ejecutar `py drive_oauth_setup.py` para")
-        print("[pipeline_davivienda] re-autenticar antes de continuar (MASTER_RULES §16.6).")
+        print(f"[pipeline_bancolombia] FATAL: OAuth no disponible ({e}).")
+        print("[pipeline_bancolombia] El SA NO puede subir a §4.2 (storageQuotaExceeded en")
+        print("[pipeline_bancolombia] Gmail personal). Ejecutar `py drive_oauth_setup.py` para")
+        print("[pipeline_bancolombia] re-autenticar antes de continuar (MASTER_RULES §16.6).")
         return 3
 
     ws, header, body, idx = _abrir_staging(gc)
@@ -1385,15 +1398,15 @@ def main():
         pendientes = pendientes[: args.max]
 
     if not pendientes:
-        print("[pipeline_davivienda] sin pendientes Davivienda en STAGING")
+        print("[pipeline_bancolombia] sin pendientes Davivienda en STAGING")
         return 0
 
-    print(f"[pipeline_davivienda] {len(pendientes)} pendiente(s) encontrados")
+    print(f"[pipeline_bancolombia] {len(pendientes)} pendiente(s) encontrados")
 
     # P6 retro 2026-04-24: pre-detectar firmas HubSpot genericas (>=3 clientes
     # con misma triple consultor+actividad+ingresos = template por defecto).
     # Para esos clientes el procesador caera a REGISTROS.
-    print("[pipeline_davivienda] pre-detectando firmas HubSpot genericas...")
+    print("[pipeline_bancolombia] pre-detectando firmas HubSpot genericas...")
     try:
         firmas_hs_gen = detectar_hubspot_genericos(hs, pendientes, umbral=3)
         if firmas_hs_gen:
@@ -1408,7 +1421,11 @@ def main():
         firmas_hs_gen = set()
 
     timestamp = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_path = LOG_DIR / f"pipeline_davivienda_{timestamp}.json"
+    # 2026-05-15 (audit clone): nombre propio por banco. metricas_pipeline.py
+    # globea ^pipeline_davivienda_\d{8}_\d{6}\.json$ — si Bancolombia escribiera
+    # ese patron, contaminaria las metricas de Davivienda. Bancolombia tendra
+    # su propia agregacion cuando se sume metricas BCO.
+    log_path = LOG_DIR / f"pipeline_bancolombia_{timestamp}.json"
     resultados = []
     for p in pendientes:
         try:
@@ -1429,7 +1446,7 @@ def main():
 
     log_path.write_text(json.dumps(resultados, ensure_ascii=False, indent=2), encoding="utf-8")
     ok = sum(1 for r in resultados if r.get("ok"))
-    print(f"\n[pipeline_davivienda] OK={ok}/{len(resultados)}  log={log_path}")
+    print(f"\n[pipeline_bancolombia] OK={ok}/{len(resultados)}  log={log_path}")
     return 0 if ok == len(resultados) else 1
 
 
