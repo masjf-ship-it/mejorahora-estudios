@@ -1,5 +1,6 @@
 # MOM_DAVIVIENDA — Master Operating Manual · Banco Davivienda
-**Versión:** 1.9 · 2026-05-15 (3 reglas nuevas tras revisión Jose 5 estudios: R-DVV-10d (tasa > 13% → Gemini), R-DVV-20 (tasa canónica Cte. Cobrada siempre, M1 valida ≤ 13%), R-DVV-21 (brecha max opc 3 vs 4 en Mode B = 2 años, insertar puente). Además fixes: regex tasa con `\s*` post-punto, filename con `credito_corto`, zoneinfo Colombia para evitar fecha futura, reemplazar duplicados en upload Drive.)
+**Versión:** 1.10 · 2026-05-16 (R-DVV-20 v2 — REGLA DE ORO Jose: tasa alta NO bloquea si es crédito de vivienda; M1 pasa de ERROR a WARNING en `tasa_ea > 13%`. Revoca el bloqueo M1 de v1 que generaba falsos positivos. R-DVV-10d retry Gemini se mantiene.)
+**v1.9 · 2026-05-15:** 3 reglas nuevas tras revisión Jose 5 estudios: R-DVV-10d (tasa > 13% → Gemini), R-DVV-20 (tasa canónica Cte. Cobrada siempre, M1 valida ≤ 13%), R-DVV-21 (brecha max opc 3 vs 4 en Mode B = 2 años, insertar puente). Además fixes: regex tasa con `\s*` post-punto, filename con `credito_corto`, zoneinfo Colombia para evitar fecha futura, reemplazar duplicados en upload Drive.
 **Específico de Davivienda. Para reglas generales del proyecto: ver `MASTER_RULES.md`.**
 
 > **Precedencia:** banco-específico (este archivo) gana sobre general (MASTER_RULES) en caso de contradicción.
@@ -131,7 +132,7 @@ La tasa que se usa para todos los cálculos del estudio (simulador, opciones de 
 - ❌ `Tasa Interés Mora Cobrada` (tasa penal, solo se cobra cuando hay mora)
 - ❌ `Tasa de Cobertura` (subsidio FRECH si aplica)
 
-**Validación M1:** si `datos.tasa_ea > 0.13` (13%) → M1 ERROR. Davivienda raramente tiene Cte. Cobrada > 13%. Constante `M1_TASA_EA_MAX_PROBABLE_MORA = 0.13` en `config_reglas.py`.
+**Validación M1 (v2 2026-05-16 — REGLA DE ORO Jose):** si `datos.tasa_ea > 0.13` (13%) → **WARNING, NO bloquea**. Regla de oro: si es **crédito de vivienda** (hipotecario), la tasa se permite aunque sea alta. El Excel se genera igual con la advertencia "verificar que NO sea Tasa Mora". La defensa real está aguas-arriba: R-DVV-10d fuerza reintento Gemini cuando `tasa_cobrada > 13%` para re-extraer y minimizar confusión con Mora. Constante `M1_TASA_EA_MAX_PROBABLE_MORA = 0.13` sigue en `config_reglas.py` (umbral del warning + trigger R-DVV-10d). El check `tasa_ea >= 1.0` (sin normalizar, formato malformado) SÍ sigue siendo ERROR duro.
 
 **Regex en `extract_davivienda_pdf.py`:** usar `r"Tasa\s+Inter[eé]s\s+Cte\.?\s*Cobrada\s+([\d.,]+)"` (con `\s*` post-punto) para tolerar variantes de espaciado del PDF.
 
@@ -421,5 +422,5 @@ py sprint_1\test_fase2.py > diag_fase2.txt 2>&1
 
 ---
 
-**FIN MOM_DAVIVIENDA v1.9**
+**FIN MOM_DAVIVIENDA v1.10**
 **Próxima revisión:** cuando aparezca caso nuevo no cubierto por R-DVV-01..18 o cambie política Davivienda.

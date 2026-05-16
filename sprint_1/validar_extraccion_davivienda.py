@@ -90,19 +90,20 @@ def validar_datos_cliente(datos) -> tuple[bool, list[str], list[str]]:
             f"(esperado decimal 0.xxxx, ej 0.1431 para 14.31%)"
         )
     elif datos.tasa_ea > M1_TASA_EA_MAX_PROBABLE_MORA:
-        # 2026-05-15 (R-DVV-20 + Jose feedback): tasa Cte. Cobrada Davivienda
-        # típica 6%-13%. Tasa Mora suele 14-20%. Si > 13% probable confusion
-        # pdfplumber leyendo Mora en lugar de Cobrada.
-        errores.append(
+        # 2026-05-16 (R-DVV-20 v2 — REGLA DE ORO Jose): si es un credito de
+        # VIVIENDA (hipotecario), la tasa SE PERMITE aunque supere 13%. M1 ya
+        # NO bloquea por tasa alta -> solo WARNING. El pipeline identifica que
+        # es Davivienda hipotecario aguas-arriba (extract_davivienda_pdf), y
+        # R-DVV-10d sigue forzando reintento Gemini cuando tasa>13% (re-extrae
+        # para minimizar confusion con Tasa Mora). Si tras Gemini sigue >13%,
+        # se confia que es la tasa real del credito de vivienda y se genera el
+        # Excel igual, con esta advertencia para que el analista verifique.
+        warnings.append(
             f"tasa_ea {datos.tasa_ea:.4f} ({datos.tasa_ea*100:.2f}%) "
-            f"> {M1_TASA_EA_MAX_PROBABLE_MORA*100:.0f}% (umbral M1). Probable confusion "
-            f"con Tasa Mora ({datos.tasa_ea*100:.2f}% atipico para Cte. Cobrada "
-            f"Davivienda; R-DVV-20)."
+            f"> {M1_TASA_EA_MAX_PROBABLE_MORA*100:.0f}% — verificar que NO sea "
+            f"Tasa Mora (Cte. Cobrada Davivienda tipica 6%-13%). Excel generado "
+            f"igual: credito de vivienda, tasa permitida (R-DVV-20)."
         )
-    elif datos.tasa_ea > M1_TASA_EA_WARN_MAX:
-        # Esta rama nunca se alcanza si TASA_MAX_PROBABLE_MORA (13%) < WARN_MAX (35%);
-        # se mantiene defensivamente por si la constante se ajusta a futuro.
-        warnings.append(f"tasa_ea inusualmente alta: {datos.tasa_ea:.4f} ({datos.tasa_ea*100:.2f}%)")
 
     # -------- Plazos --------
     if datos.plazo_inicial <= 0:

@@ -212,6 +212,55 @@ Para cambios que implican borrar regla de doc canónico, registrar aquí la regl
 
 ---
 
+## 2026-05-16
+
+- **[2026-05-16] R-DVV-20 / R-BCO-20 v1 → v2 (REGLA DE ORO Jose): tasa alta NO bloquea si es crédito de vivienda.**
+
+  **Autoridad:** Jose (dueño del negocio), instrucción directa: *"LAS TASAS
+  DEBEN PERMITIRSE, LA REGLA DE ORO ES QUE SEA UN CRÉDITO DE VIVIENDA."*
+
+  **Disparador:** primer run multi-banco real (Pipeline PM 2026-05-15 20:32).
+  Clientes con tasa legítima > 13% bloqueados por M1 como falsos positivos:
+  - LUISA FERNANDA CASTILLO (Davivienda) — tasa 13.10% → `REVISION_MANUAL: M1 fallo`
+  - ANYI YORMARY VILLALBA (Bancolombia) — tasa 14.00% → `REVISION_MANUAL: M1 fallo`
+  Ambos créditos de vivienda válidos; la tasa real ES esa. El bloqueo M1
+  impedía generar el Excel sin justificación de negocio.
+
+  **REGLA BORRADA (R-DVV-20 v1 / R-BCO-20 v1, vigente 2026-05-15 → 2026-05-16):**
+  > "M1 (`validar_extraccion_*.py`) bloquea `tasa_ea > 13%` con ERROR
+  > 'Probable confusion con Tasa Mora'. El cliente NO genera Excel
+  > (`REVISION_MANUAL: M1 fallo`)."
+
+  **REGLA NUEVA (R-DVV-20 v2 / R-BCO-20 v2):**
+  > Regla de oro: si el extracto es un **crédito de vivienda** (hipotecario
+  > — siempre lo es para BCO/DVV válidos, verificado aguas-arriba en el
+  > extractor), la tasa **se permite** aunque supere 13%. M1 emite
+  > **WARNING** ("verificar que NO sea Tasa Mora") y el Excel **se genera
+  > igual**. La defensa anti-Mora se mantiene aguas-arriba: R-DVV-10d /
+  > R-BCO-10d siguen forzando reintento Gemini cuando `tasa_cobrada > 13%`
+  > (re-extrae para minimizar confusión). El check `tasa_ea >= 1.0` (sin
+  > normalizar / formato malformado) SIGUE siendo ERROR duro.
+
+  **Archivos reconciliados (§19):**
+  - `sprint_1/validar_extraccion_davivienda.py` — rama `> 0.13`:
+    `errores.append` → `warnings.append` + reword. Rama muerta
+    `> M1_TASA_EA_WARN_MAX` eliminada (inalcanzable).
+  - `sprint_1/validar_extraccion_bancolombia.py` — ídem + docstring
+    (mueve tasa>13% de "Validaciones DURAS" a "Warnings").
+  - `sprint_1/tests/test_m1.py` — `test_m1_rango_tasa_ea`: `(0.50, False)`
+    → `(0.50, True)`, agregado `(0.13, True)`. pytest 52/52 OK.
+  - `MOM_DAVIVIENDA.md` v1.9 → v1.10. `MOM_BANCOLOMBIA.md` v1.0 → v1.1.
+  - `config_reglas.M1_TASA_EA_MAX_PROBABLE_MORA = 0.13` SIN cambio
+    (ahora es umbral del WARNING + trigger R-DVV-10d/R-BCO-10d).
+  - `test_fase2.py` golden 16/16 OK (no dependía del bloqueo).
+
+  **Riesgo aceptado:** un extractor que confunda Mora con Cobrada ahora
+  genera Excel (con warning) en vez de bloquear. Mitigación: R-DVV-10d/
+  R-BCO-10d Gemini retry aguas-arriba + el warning visible para el
+  analista 1 en revisión. Jose lo aceptó explícitamente (regla de oro).
+
+---
+
 ## 2026-05-15
 
 - **[2026-05-15 PM] BANCOLOMBIA INCORPORADO — Pipeline multi-banco operativo (Patrón 3 Module-per-Bank):**

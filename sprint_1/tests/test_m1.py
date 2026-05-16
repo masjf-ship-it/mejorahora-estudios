@@ -97,11 +97,15 @@ def test_m1_falla_seguro_vida_cero_con_incendio_positivo():
 @pytest.mark.parametrize("tasa,esperado_ok", [
     (0.0001, True),    # tasa muy pequeña pero positiva
     (0.12, True),      # 12% = típica Davivienda Cte. Cobrada, dentro de rango
-    # 2026-05-15 (R-DVV-20): tasa > 13% ahora dispara M1 ERROR (probable Mora).
-    # Antes 0.50 era "decimal alto pero valido" (solo WARN). Ya no.
-    (0.50, False),     # 50% > 13% -> probable Tasa Mora confundida, M1 ERROR
-    (0.0, False),      # tasa 0
-    (1.5, False),      # > 1 sin normalizar
+    # 2026-05-16 (R-DVV-20 v2 — REGLA DE ORO Jose): si es credito de VIVIENDA
+    # la tasa SE PERMITE aunque supere 13%. tasa>13% ya NO es M1 ERROR -> es
+    # WARNING (el Excel se genera igual). Antes (R-DVV-20 v1, 2026-05-15)
+    # bloqueaba; revocado porque generaba falsos positivos en creditos de
+    # vivienda con tasa legitima alta (caso LUISA 13.10%, ANYI 14.00%).
+    (0.50, True),      # 50% > 13% -> WARNING, NO bloquea (credito vivienda)
+    (0.13, True),      # borde: 13% exacto, permitido
+    (0.0, False),      # tasa 0 -> ERROR (invalida)
+    (1.5, False),      # > 1 sin normalizar -> ERROR (formato malformado)
 ])
 def test_m1_rango_tasa_ea(tasa: float, esperado_ok: bool):
     datos = _datos_fernando_canonicos(tasa_ea=tasa)

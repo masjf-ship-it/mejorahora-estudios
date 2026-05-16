@@ -1,6 +1,7 @@
 # MOM_BANCOLOMBIA — Reglas operativas Bancolombia
 
-**Versión:** 1.0 · 2026-05-15 (creación inicial)
+**Versión:** 1.1 · 2026-05-16 (R-BCO-20 v2 — REGLA DE ORO Jose: tasa alta NO bloquea si es crédito de vivienda; M1 pasa de ERROR a WARNING en `tasa_ea > 13%`)
+**v1.0 · 2026-05-15:** creación inicial
 **Autoridad:** En contradicción con `MASTER_RULES.md`, **este archivo gana** (regla banco-específica > regla general).
 
 > Este archivo contiene las reglas específicas para procesar extractos del banco **Bancolombia** (Estado de Crédito Hipotecario en PESOS). Para reglas generales del proyecto, ver `MASTER_RULES.md`.
@@ -141,8 +142,12 @@ Misma lógica que R-DVV-11. Si `|DIF.SIMULA| > $70k` post Regla 9.3:
 ### R-BCO-18 — Ley 546 (no extender plazo)
 Misma regla R-DVV-18 — aplica a TODOS los hipotecarios en Colombia. No proponer plazos >= `plazo_pendiente`. Si `plazo_pendiente < 5 - plazo_pagado` años → NO_VIABLE_LEY_546.
 
-### R-BCO-20 — Tasa canónica + M1 valida ≤ 13%
-M1 (`validar_extraccion_bancolombia.py`) bloquea `tasa_ea > 13%` con mensaje "Probable confusion con Tasa Mora". Activa retry Gemini vía R-BCO-10d.
+### R-BCO-20 — Tasa alta NO bloquea (REGLA DE ORO: crédito de vivienda)
+**v2 (2026-05-16, autoridad Jose):** La **regla de oro** es: si el extracto es un **crédito de vivienda** (hipotecario), la tasa **se permite** aunque supere 13%. M1 (`validar_extraccion_bancolombia.py`) ya **NO bloquea** por `tasa_ea > 13%`; lo emite como **WARNING** ("verificar que NO sea Tasa Mora") y el Excel **se genera igual**.
+
+Defensa que se mantiene: R-BCO-10d sigue forzando reintento Gemini cuando `tasa_cobrada > 13%` (re-extrae para minimizar confusión con Tasa Mora). Si tras Gemini sigue >13%, se confía que es la tasa real del crédito de vivienda.
+
+Bancolombia siempre es "Estado de Crédito Hipotecario" (R-BCO-01) → la condición "es vivienda" siempre se cumple para extractos BCO válidos. La tasa canónica sigue siendo `Tasa interés cobrada` (R-BCO-04).
 
 ---
 
@@ -168,4 +173,4 @@ Otras reglas (9.2, 9.3, 9.4, R-DVV-06 duplicación, R-DVV-11 DIF.SIMULA, R-DVV-1
 
 ---
 
-**FIN MOM_BANCOLOMBIA v1.0**
+**FIN MOM_BANCOLOMBIA v1.1**

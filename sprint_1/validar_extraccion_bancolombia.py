@@ -10,17 +10,19 @@ ya consolidados en DatosClienteExcel.
 Si falla alguna validacion dura -> retorna lista de errores. El pipeline
 decide bloquear con ILEGIBLE / REVISION_MANUAL.
 
-Validaciones (R-BCO-XX + coherencia general):
+Validaciones DURAS (bloquean — R-BCO-XX + coherencia general):
   - saldo_capital > $1,000,000 (nunca menor para hipotecario activo)
   - cuota_mensual > 0 y razonable (< $10,000,000)
-  - tasa_ea entre 0 y 1 (decimal)
-  - tasa_ea > 13% -> probable Mora confundida (R-BCO-20, equivalente R-DVV-20)
+  - tasa_ea entre 0 y 1 (decimal; >= 1.0 = sin normalizar = ERROR)
   - plazo_inicial > 0
   - plazo_pendiente > 0 y <= plazo_inicial
   - credito_id no vacio
   - nombre no vacio
 
-Warnings (no bloquean):
+Warnings (no bloquean — el Excel se genera igual):
+  - tasa_ea > 13% -> R-BCO-20 v2 (REGLA DE ORO Jose 2026-05-16): si es
+    credito de VIVIENDA la tasa se permite. Solo avisa "verificar no sea
+    Tasa Mora". R-BCO-10d ya re-extrae con Gemini aguas-arriba.
   - ingresos == 0 (esperado en Bancolombia — NO REQUIERE ingresos certificados)
   - consultor vacio (opcional)
 """
@@ -86,13 +88,19 @@ def validar_datos_cliente(datos) -> tuple[bool, list[str], list[str]]:
             f"(esperado decimal 0.xxxx, ej 0.1300 para 13.00%)"
         )
     elif datos.tasa_ea > M1_TASA_EA_MAX_PROBABLE_MORA:
-        # R-BCO-20: tasa Bancolombia Cte. Cobrada tipica 8%-13%. Mora ~15-20%.
-        # Si > 13% probable confusion con Tasa Mora cobrada.
-        errores.append(
+        # 2026-05-16 (R-BCO-20 v2 — REGLA DE ORO Jose): si es un credito de
+        # VIVIENDA (hipotecario), la tasa SE PERMITE aunque supere 13%. M1 ya
+        # NO bloquea por tasa alta -> solo WARNING. Bancolombia siempre es
+        # "Estado de Credito Hipotecario" (verificado en extract_bancolombia_pdf),
+        # y R-BCO-10d sigue forzando reintento Gemini cuando tasa>13% para
+        # re-extraer y minimizar confusion con Tasa Mora. Si tras Gemini sigue
+        # >13%, se confia que es la tasa real del credito de vivienda y se
+        # genera el Excel igual, con esta advertencia para el analista.
+        warnings.append(
             f"tasa_ea {datos.tasa_ea:.4f} ({datos.tasa_ea*100:.2f}%) "
-            f"> {M1_TASA_EA_MAX_PROBABLE_MORA*100:.0f}%. Probable confusion "
-            f"con Tasa Mora ({datos.tasa_ea*100:.2f}% atipico para Cte. Cobrada "
-            f"Bancolombia; R-BCO-20)."
+            f"> {M1_TASA_EA_MAX_PROBABLE_MORA*100:.0f}% — verificar que NO sea "
+            f"Tasa Mora (Cte. Cobrada Bancolombia tipica 8%-13%). Excel generado "
+            f"igual: credito de vivienda, tasa permitida (R-BCO-20)."
         )
 
     # -------- Plazos --------
