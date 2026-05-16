@@ -10,7 +10,15 @@
 #   PASO 2b   pipeline_bancolombia (2026-05-15)
 # Logs: _logs/scheduled_YYYYMMDD.txt (MASTER_RULES §18.4)
 # ============================================================
-set -euo pipefail
+# 2026-05-15: NO usar `set -e`. Este script captura $? despues de cada paso
+# y decide explicitamente (if [ $RC -ne 0 ]; then exit N; fi para abortos
+# criticos pip/smoke). Con `set -e`, el exit no-cero NORMAL de
+# pipeline_davivienda.py (exit 1/2/3 = algunos clientes fallaron, esperado)
+# mataba el script ANTES de PASO 2b -> Bancolombia nunca corria. Bug
+# detectado en run manual 2026-05-15 17:28: 4 pendientes BCO sin procesar.
+# `set -u` (var indefinida) y `pipefail` SI se mantienen (defensivos, no
+# interfieren con la logica de captura de $? porque los pasos no usan pipes).
+set -uo pipefail
 
 BASE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOGDIR="$BASE/_logs"
@@ -63,7 +71,12 @@ if [ $RC_PIP -ne 0 ]; then
   exit 5
 fi
 
-cd "$BASE/sprint_1"
+# Sin `set -e`, un cd fallido NO aborta solo -> guarda explicita.
+# Todos los PASO 0-2b dependen de estar en sprint_1.
+cd "$BASE/sprint_1" || {
+  echo "[$(TS)] ABORT: no se pudo cd a $BASE/sprint_1" >> "$LOG"
+  exit 6
+}
 
 # ---------------------------------------------------------
 # PASO 0: Smoke test pre-pipeline

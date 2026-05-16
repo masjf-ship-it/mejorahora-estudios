@@ -11,6 +11,13 @@ sprint_1/_backups/
 sprint_1/output/
 sprint_1/publicacion_staging_*.txt
 
+# Estudios Excel generados — contienen PII/datos financieros reales de
+# clientes (nombre, credito, saldo, ingresos). NUNCA commitear. MASTER_RULES
+# §11 Habeas Data. Detectado por stop hook en run cloud 2026-05-15. La salida
+# por defecto de cargar_config() es <repo_root>/estudios_generados/.
+estudios_generados/
+sprint_1/estudios_generados/
+
 # Claude Code per-user settings
 .claude/settings.local.json
 
