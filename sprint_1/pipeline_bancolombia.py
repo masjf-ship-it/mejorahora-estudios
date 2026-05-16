@@ -93,7 +93,7 @@ BANCO = "BANCOLOMBIA"  # 2026-05-15: pipeline Bancolombia (paralelo a Davivienda
 # 2026-05-07: deduplicado — antes estos literals vivian aqui Y en config_reglas.
 # 2026-05-12: agregadas tolerancias R-DVV-06 G1/G2/G3 (antes hardcoded en funcion).
 from config_reglas import (
-    PREFIJOS_HIPOTECARIO,
+    PREFIJOS_HIPOTECARIO,  # noqa: F401  # R-DVV-08 no aplica BCO (ver clasificar_credito)
     PREFIJOS_LEASING,  # noqa: F401
     TOLERANCIA_G1_CUOTA_DUPLICADA,
     UMBRAL_G2_DISCREPANCIA_SEGUROS,
@@ -247,21 +247,34 @@ def _staging_update(ws, row_idx: int, idx: dict, estado: str, link: str = "",
 
 
 # ============================================================
-# CLASIFICACION CREDITO (570 vs 600)
+# CLASIFICACION CREDITO — Bancolombia (R-DVV-08 NO aplica)
 # ============================================================
 
 def clasificar_credito(credito: str) -> str:
-    """Retorna 'hipotecario' (570/571), 'leasing' (600), o 'otro'."""
+    """Bancolombia: TODO extracto es 'Estado de Credito Hipotecario en PESOS'.
+
+    2026-05-15 (bug clone): la version original heredada de
+    pipeline_davivienda.py validaba prefijos 570/571 (hipotecario) y 600
+    (leasing) de R-DVV-08. Bancolombia usa formato 9NNNNNNNNNN (sin guion
+    verificador, ver MOM_BANCOLOMBIA §3 mapeo y §5 "R-DVV-08 NO aplica").
+    Los creditos BCO (ej. 90000404120) no matcheaban ningun prefijo
+    Davivienda -> clasificar_credito devolvia "otro" -> el pipeline los
+    saltaba con "Credito no reconocido" ANTES de abrir el PDF. Detectado
+    en run cloud 2026-05-15 19:43 (4/4 BCO saltados).
+
+    Bancolombia NO tiene taxonomia hipotecario-vs-leasing por prefijo:
+    el extracto SIEMPRE es hipotecario (MOM_BANCOLOMBIA §1). Solo se
+    retorna "otro" si el credito esta vacio o no es numerico (basura
+    real que indicaria fila STAGING corrupta).
+    """
     if not credito:
         return "otro"
     num = re.sub(r"[^\d]", "", credito)
-    for p in PREFIJOS_HIPOTECARIO:
-        if num.startswith(p):
-            return "hipotecario"
-    for p in PREFIJOS_LEASING:
-        if num.startswith(p):
-            return "leasing"
-    return "otro"
+    if not num or len(num) < 5:
+        # Sin digitos o demasiado corto -> no es un numero de credito valido.
+        return "otro"
+    # Bancolombia: cualquier credito numerico valido es hipotecario.
+    return "hipotecario"
 
 
 # ============================================================
