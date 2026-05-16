@@ -348,6 +348,15 @@ def main():
     print(f"Filas totales en REGISTROS: {len(body)}")
 
     pendientes = []
+    # 2026-05-16 (Jose): diagnostico de exclusiones. Antes listar excluia en
+    # SILENCIO (clientes "desaparecian" del flujo sin traza). Ahora cada cliente
+    # con estado activo (Pendiente/Pte. Validar Yenny/Mora) que se excluye queda
+    # registrado con su razon. Esto NO cambia que se publica; solo da visibilidad
+    # (ej: el intake nuevo es mayoritariamente UVR -> PESOS-only lo excluye OK).
+    excl_uvr = []                 # amortizacion UVR (pipeline es PESOS-only)
+    excl_banco_no_soportado = []  # banco real fuera de BANCOS_VALIDOS (FNA, La Hipotecaria...)
+    excl_sin_banco = []           # banco vacio (registro incompleto)
+    n_otro_banco_soportado = 0    # banco valido pero != filtro de este PASO (normal, va en su PASO)
     for i, row in enumerate(body, start=2):  # +2 porque row 1 = header, body empieza en sheet row 2
         def safe(idx):
             return row[idx] if idx < len(row) else ""
@@ -355,17 +364,28 @@ def main():
         estado = safe(COL_ESTADO)
         banco = safe(COL_BANCO)
         amortizacion = safe(COL_AMORTIZACION)
+        nombre = safe(COL_NOMBRE)
 
         if not estado_match(estado, filtro_estados):
-            continue
+            continue  # realizado/cancelado/etc: no es del flujo, sin traza
+
+        # --- A partir de aqui es un cliente ACTIVO; si se excluye, dejar traza ---
         if not banco_match(banco, filtro_bancos):
+            # Distinguir banco-no-soportado real vs otro-banco-soportado (ruido)
+            if not normalizar(banco):
+                excl_sin_banco.append(nombre)
+            elif banco_match(banco, BANCOS_VALIDOS):
+                n_otro_banco_soportado += 1  # se procesa en su propio PASO; no es problema
+            else:
+                excl_banco_no_soportado.append((nombre, banco.strip()))
             continue
         if not amortizacion_match(amortizacion):
+            excl_uvr.append((nombre, banco.strip()))  # UVR: PESOS-only lo excluye OK
             continue
 
         pendientes.append({
             "sheet_row": i,
-            "nombre": safe(COL_NOMBRE),
+            "nombre": nombre,
             "cc": safe(COL_CC),
             "credito": safe(COL_CREDITO),
             "banco": banco,
@@ -378,6 +398,27 @@ def main():
         })
 
     print(f"\nPendientes encontrados: {len(pendientes)}\n")
+
+    # ---- DIAGNOSTICO EXCLUSIONES (Jose 2026-05-16) ----
+    _tot_excl = len(excl_uvr) + len(excl_banco_no_soportado) + len(excl_sin_banco)
+    if _tot_excl or n_otro_banco_soportado:
+        print("---- DIAGNOSTICO EXCLUSIONES (clientes activos no publicados) ----")
+        if excl_uvr:
+            print(f"  UVR (PESOS-only los excluye; soporte UVR = proyecto aparte): {len(excl_uvr)}")
+            for nom, bco in excl_uvr:
+                print(f"    - {nom}  [{bco}]")
+        if excl_banco_no_soportado:
+            print(f"  BANCO NO SOPORTADO (sin pipeline): {len(excl_banco_no_soportado)}")
+            for nom, bco in excl_banco_no_soportado:
+                print(f"    - {nom}  [{bco}]")
+        if excl_sin_banco:
+            print(f"  SIN BANCO (registro incompleto, completar en REGISTROS): {len(excl_sin_banco)}")
+            for nom in excl_sin_banco:
+                print(f"    - {nom}")
+        if n_otro_banco_soportado:
+            print(f"  (info) Otro banco soportado != filtro de este PASO: "
+                  f"{n_otro_banco_soportado} (se procesan en su propio PASO, OK)")
+        print("------------------------------------------------------------------")
 
     if not pendientes:
         print("(ningun cliente cumple los criterios del dia)")

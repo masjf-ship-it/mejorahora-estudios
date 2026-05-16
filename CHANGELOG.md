@@ -214,6 +214,28 @@ Para cambios que implican borrar regla de doc canónico, registrar aquí la regl
 
 ## 2026-05-16
 
+- **[2026-05-16 PM] listar_pendientes_hoy: diagnóstico de exclusiones (observabilidad, no es cambio de regla).**
+
+  Disparador: intake de clientes nuevos "Pte. Validar Yenny" no aparecía
+  en GENERADOS y se perdía la traza. Causa raíz (NO bug): mayoría son
+  **UVR** y el pipeline es PESOS-only (`amortizacion_match` excluye UVR
+  por diseño, Jose 2026-04-21). El problema real era que la exclusión era
+  **silenciosa**.
+
+  Cambio: `listar_pendientes_hoy.py` ahora, para cada cliente con estado
+  activo (Pendiente/Pte. Validar Yenny/Mora) que se excluye, imprime un
+  bloque `DIAGNOSTICO EXCLUSIONES` categorizado:
+  - `UVR` (PESOS-only lo excluye; soporte UVR = proyecto aparte) + nombres
+  - `BANCO NO SOPORTADO` (sin pipeline: FNA, La Hipotecaria...) + nombres
+  - `SIN BANCO` (registro incompleto) + nombres
+  - `(info)` otro banco soportado != filtro del PASO (ruido evitado: solo
+    cuenta, se procesa en su propio PASO)
+
+  NO cambia qué se publica (lógica de `pendientes` intacta) — solo da
+  visibilidad. No es cambio de regla → sin bump MOM/MASTER_RULES.
+  Decisión Jose: UVR se aborda DESPUÉS de terminar bancos PESOS
+  (Caja Social siguiente). Tests: pytest 52/52, golden 16/16, drift 0.
+
 - **[2026-05-16 PM] R-DVV-08: prefijo `601` agregado a leasing (caso LAURA VANNESA).**
 
   Disparador: run multi-banco 2026-05-16. LAURA VANNESA NORENA RICARDO,
