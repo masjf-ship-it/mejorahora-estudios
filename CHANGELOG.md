@@ -214,6 +214,36 @@ Para cambios que implican borrar regla de doc canónico, registrar aquí la regl
 
 ## 2026-05-16
 
+- **[2026-05-16 PM] Audit K — `generar_desde_sheets.py` (453L): limpio, 3 hallazgos anti-drift menores.**
+
+  Módulo financiero núcleo compartido DVV+BCO (`_capital_intereses_simulador`,
+  `aplicar_regla_93_abono_extraordinario`, `cargar_config`, `ocultar_hoja_bd`).
+  Nunca auditado antes; prioridad ALTA porque es donde vive la lógica
+  DIF.SIMULA/FRECH. **Funcionalmente limpio:** lógica financiera sólida y
+  correctamente agnóstica de banco, `TOLERANCIA_SUMA_CUOTA` ya centralizada
+  (config_reglas import), sin bugs latentes, sin constantes duplicadas.
+
+  Hallazgos (solo doc/claridad, sin cambio de comportamiento):
+  - **K1 (doc-drift):** docstring línea ~298 citaba `ESTADO_PROYECTO.md §9`
+    para reglas universales; ESTADO NO es fuente de reglas (CLAUDE.md). El
+    mismo archivo (línea 47) ya citaba bien `MASTER_RULES §8.15`.
+    Corregido → `MASTER_RULES.md §8` (resuelve auto-inconsistencia).
+  - **K2 (claridad):** `csv_por_defecto`/`generar`/`main` con snapshot
+    `2026-04-16` hardcoded = ruta LEGACY manual-CLI. Producción
+    (run_pipeline → pipeline_*) carga de Sheets/STAGING, NO de CSV.
+    Agregado docstring marcándolo legacy + nota (para BCO ese CSV no
+    existe; usar --csv explícito si se usa la herramienta manual).
+  - **K3 (forward-pointer):** comentario en `aplicar_regla_93` (cómputo
+    `dif_simula`) apuntando a R-DVV-22: es el punto-gancho si se automatiza
+    el FRECH. Aclara que HOY usa `int_sim` crudo (NO implementado, decisión
+    Jose) y dónde mirar (MOM_DAVIVIENDA R-DVV-22, números caso SARA).
+  - **K4 (nota, sin cambio):** alias `eliminar_hoja_bd = ocultar_hoja_bd`
+    sin uso externo, pero es retrocompat deliberada inofensiva → se deja
+    (principio mínimo-riesgo).
+
+  No es cambio de regla → sin bump MOM/MASTER_RULES (igual que audits I/J).
+  Tests: pytest 52/52, test_fase2 golden 16/16, anom_drift=0.
+
 - **[2026-05-16 PM] listar_pendientes_hoy: diagnóstico de exclusiones (observabilidad, no es cambio de regla).**
 
   Disparador: intake de clientes nuevos "Pte. Validar Yenny" no aparecía

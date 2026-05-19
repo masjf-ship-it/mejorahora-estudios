@@ -127,6 +127,11 @@ def aplicar_regla_93_abono_extraordinario(datos,
         datos.tasa_ea, datos.plazo_pendiente, datos.saldo_capital)
 
     suma_cuota_bd = datos.cuota_mensual - (cap_bd + int_bd + seguros)
+    # FUTURO R-DVV-22 (FRECH) — punto-gancho documentado, NO implementado
+    # (decision Jose 2026-05-16: esperar mas casos). Si se automatiza: cuando
+    # datos.frech_subsidio > 0 y datos.interes_mensual == 0 (Davivienda),
+    # usar (int_sim - frech) aqui y en el gate de pipeline_davivienda.py.
+    # Ver MOM_DAVIVIENDA.md R-DVV-22 (numeros caso SARA). Hoy: int_sim crudo.
     dif_simula = datos.cuota_mensual - (cap_sim + int_sim + seguros)
 
     notas.append(
@@ -178,7 +183,15 @@ def cargar_config():
 
 
 def csv_por_defecto(banco: str = "davivienda") -> str:
-    """Ruta al snapshot CSV del banco indicado."""
+    """Ruta al snapshot CSV del banco indicado.
+
+    LEGACY — solo ruta manual-CLI (`generar_desde_sheets.py --credito X`).
+    La PRODUCCION (pipeline_davivienda/pipeline_bancolombia via run_pipeline)
+    NO usa esto: carga desde Google Sheets/STAGING, no de CSV snapshot.
+    El `2026-04-16` es un snapshot historico fijo (no se actualiza); para
+    Bancolombia ese archivo no existe -> pasar --csv explicito si se usa
+    esta herramienta manual.
+    """
     return str(
         SCRIPT_DIR.parent / "bank_rules" /
         f"{banco.lower()}_snapshot_2026-04-16.csv"
@@ -295,7 +308,8 @@ def generar(
     print(f"      Ingresos: ${datos.ingresos:,.0f} | "
           f"Abono efectivo: ${datos.abono_efectivo:,.0f}")
 
-    # 1.5) Reglas universales de ajuste post-carga (ESTADO_PROYECTO.md §9)
+    # 1.5) Reglas universales de ajuste post-carga (MASTER_RULES.md §8)
+    # (ESTADO_PROYECTO NO es fuente de reglas — ver CLAUDE.md jerarquia docs)
     notas_reglas = []
     print(f"[2/5] Aplicando reglas de ajuste (9.2 y 9.3)...")
     if seguros_override > 0:
