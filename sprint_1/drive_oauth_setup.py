@@ -24,7 +24,12 @@ PROJECT_ROOT = SCRIPT_DIR.parent
 OAUTH_CLIENT = PROJECT_ROOT / "credentials" / "oauth_client.json"
 OAUTH_TOKEN = PROJECT_ROOT / "credentials" / "oauth_token.json"
 
-SCOPES = ["https://www.googleapis.com/auth/drive.file"]
+# 2026-05-16 (Audit N): single-source del scope. Si setup y runtime divergen,
+# el token generado no sirve. oauth_drive.SCOPES_OAUTH es la fuente unica
+# (import barato: oauth_drive no carga libs google a nivel modulo).
+import sys as _sys
+_sys.path.insert(0, str(SCRIPT_DIR))
+from oauth_drive import SCOPES_OAUTH as SCOPES
 
 
 def main():

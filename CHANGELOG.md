@@ -214,6 +214,43 @@ Para cambios que implican borrar regla de doc canónico, registrar aquí la regl
 
 ## 2026-05-16
 
+- **[2026-05-16 PM] Audit N — 5 módulos baja prioridad (utilidades/infra). CIERRA roadmap de auditorías.**
+
+  `oauth_drive.py` (123L) y `cloud_bootstrap.py` (141L): **LIMPIOS**
+  (Fix 3 reemplazar_existente bien aplicado en oauth_drive; bootstrap
+  SSL/creds idempotente y defensivo). Nota aceptada: MIME xlsx literal
+  en oauth_drive ≈ drive_client.MIME_XLSX — constante OOXML inmutable,
+  centralizar no compensa el costo de dependencia.
+
+  - **N1 (`metricas_pipeline.py` 264L — CORRECCIÓN, no cosmético):**
+    `_RE_LOG` solo matcheaba `pipeline_davivienda_*.json`. Tras Audit L
+    (BCO escribe `pipeline_bancolombia_*.json`) las métricas IGNORABAN
+    Bancolombia → el criterio "5 días sin fallos" era **engañoso**
+    (decía limpio aunque BCO fallara). Fix: regex bank-aware
+    `pipeline_(davivienda|bancolombia)_...`, captura banco en
+    `_banco_log` (desglose futuro), docstring + headers + argparse
+    actualizados. Verificado: extrae (banco,fecha,hora) de ambos;
+    rechaza no-bancos.
+  - **N2 (`drive_oauth_setup.py` 68L — anti-drift §8.15):** scope OAuth
+    `["...drive.file"]` literal duplicado → `from oauth_drive import
+    SCOPES_OAUTH`. Single-source: si setup y runtime divergían el token
+    no servía. Import barato (oauth_drive no carga google a nivel módulo).
+  - **N3 (`diag_oauth.py` 141L — anti-drift §8.15 + higiene IDs §3.4):**
+    (a) `DRIVE_FOLDER_ANALISTAS_RW` folder ID hardcoded duplicaba el
+    canónico `config_reglas.py:176` (riesgo: diagnóstico revisaba folder
+    equivocado si el canónico cambiaba) → `from config_reglas import
+    DRIVE_FOLDER_ANALISTAS_RW`. (b) scope OAuth → `from oauth_drive
+    import SCOPES_OAUTH` (3ra copia eliminada).
+
+  No es cambio de regla → sin bump MOM/MASTER_RULES (igual I/J/K/L/M).
+  Tests: pytest 52/52, test_fase2 16/16, anom_drift=0.
+
+  **ROADMAP AUDITORÍAS COMPLETO.** Todos los módulos sprint_1 auditados
+  (A–N). Resumen sesión 2026-05-16: K (generar_desde_sheets), L (trío
+  Bancolombia), M (validar_excel_generado), N (5 utilidades). Hallazgo
+  de mayor valor: L1 (regex tasa BCO no toleraba mojibake → falsos
+  bloqueos) y N1 (métricas ignoraban BCO → criterio escalación engañoso).
+
 - **[2026-05-16 PM] Audit M — `validar_excel_generado.py` (170L): limpio, 2 fixes anti-drift/multi-banco.**
 
   Validador M2 (gate de calidad post-Excel, agnóstico de banco — lo usan

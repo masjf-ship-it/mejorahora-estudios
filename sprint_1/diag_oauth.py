@@ -13,7 +13,14 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent
 OAUTH_TOKEN = PROJECT_ROOT / "credentials" / "oauth_token.json"
 OAUTH_CLIENT = PROJECT_ROOT / "credentials" / "oauth_client.json"
-DRIVE_FOLDER_ANALISTAS_RW = "1UVsQtyzQHEpfRlcjUrq8gBsXgEqABoym"
+
+# 2026-05-16 (Audit N): single-source. El folder ID y el scope estaban
+# hardcoded aqui Y en config_reglas/oauth_drive (riesgo: el diagnostico
+# revisaba el folder equivocado si el canonico cambiaba; MASTER_RULES §8.15
+# + higiene de IDs §3.4/§17.12). Ahora se importan de la fuente unica.
+sys.path.insert(0, str(SCRIPT_DIR))
+from config_reglas import DRIVE_FOLDER_ANALISTAS_RW
+from oauth_drive import SCOPES_OAUTH
 
 print("=" * 60)
 print("DIAGNOSTICO OAuth Drive — MejorAhora SAS")
@@ -60,8 +67,7 @@ except ImportError as e:
 # PASO 5: Cargar credenciales
 print("\n[5] Cargando Credentials desde archivo:")
 try:
-    SCOPES = ["https://www.googleapis.com/auth/drive.file"]
-    creds = Credentials.from_authorized_user_file(str(OAUTH_TOKEN), SCOPES)
+    creds = Credentials.from_authorized_user_file(str(OAUTH_TOKEN), SCOPES_OAUTH)
     print(f"  valid   : {creds.valid}")
     print(f"  expired : {creds.expired}")
     print(f"  has_refresh_token: {bool(creds.refresh_token)}")

@@ -3,9 +3,16 @@
 """
 metricas_pipeline.py — MejorAhora SAS · 2026-05-07
 ====================================================
-Agrega los logs JSON del pipeline (`_logs/pipeline_davivienda_*.json`) en una
-metrica semanal que apoya el criterio "5 dias sin errores antes de escalar a
-Bancolombia" (ESTADO_PROYECTO §3 / §7, MASTER_RULES §14.1).
+Agrega los logs JSON del pipeline (`_logs/pipeline_{davivienda,bancolombia}_*.json`)
+en una metrica semanal que apoya el criterio "5 dias sin errores"
+(ESTADO_PROYECTO §3 / §7, MASTER_RULES §14.1).
+
+2026-05-16 (Audit N): multi-banco. Antes solo agregaba
+pipeline_davivienda_*.json; tras Audit L (BCO escribe su propio
+pipeline_bancolombia_*.json) las metricas IGNORABAN Bancolombia y el
+criterio "5 dias limpios" era enganoso (decia limpio aunque BCO fallara).
+Ahora cubre AMBOS bancos operativos. El banco queda en `_banco_log` por
+registro para desglose futuro.
 
 Uso:
     py metricas_pipeline.py                    # ultimos 7 dias, output a stdout
@@ -35,8 +42,9 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent
 LOGS_DIR = PROJECT_ROOT / "_logs"
 
-# Patron del nombre de archivo: pipeline_davivienda_YYYYMMDD_HHMMSS.json
-_RE_LOG = re.compile(r"^pipeline_davivienda_(\d{8})_(\d{6})\.json$")
+# Patron: pipeline_<banco>_YYYYMMDD_HHMMSS.json (banco = davivienda|bancolombia)
+# group(1)=banco  group(2)=fecha YYYYMMDD  group(3)=hora HHMMSS
+_RE_LOG = re.compile(r"^pipeline_(davivienda|bancolombia)_(\d{8})_(\d{6})\.json$")
 
 # Categorias de fallo (string-match en campo "detalle")
 CATEGORIAS_FALLO = [
@@ -62,7 +70,7 @@ CATEGORIAS_FALLO = [
 
 
 def parse_args() -> argparse.Namespace:
-    ap = argparse.ArgumentParser(description="Metricas semanales del pipeline Davivienda")
+    ap = argparse.ArgumentParser(description="Metricas semanales del pipeline (Davivienda + Bancolombia)")
     ap.add_argument("--dias", type=int, default=7, help="Ventana en dias (default 7)")
     ap.add_argument("--out", type=str, default="", help="Guardar reporte a archivo")
     ap.add_argument("--json", action="store_true", help="Output JSON estructurado")
@@ -71,7 +79,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def listar_logs_en_ventana(logs_dir: Path, dias: int, hoy: dt.date | None = None) -> list[Path]:
-    """Lista archivos pipeline_davivienda_*.json dentro de los ultimos N dias."""
+    """Lista archivos pipeline_{davivienda,bancolombia}_*.json en los ultimos N dias."""
     if hoy is None:
         hoy = dt.date.today()
     desde = hoy - dt.timedelta(days=dias - 1)
@@ -83,7 +91,7 @@ def listar_logs_en_ventana(logs_dir: Path, dias: int, hoy: dt.date | None = None
         if not m:
             continue
         try:
-            fecha = dt.datetime.strptime(m.group(1), "%Y%m%d").date()
+            fecha = dt.datetime.strptime(m.group(2), "%Y%m%d").date()
         except ValueError:
             continue
         if desde <= fecha <= hoy:
@@ -123,10 +131,12 @@ def cargar_resultados(paths: list[Path]) -> list[dict]:
         m = _RE_LOG.match(p.name)
         if not m:
             continue
-        fecha = m.group(1)  # YYYYMMDD
+        banco = m.group(1)  # davivienda|bancolombia
+        fecha = m.group(2)  # YYYYMMDD
         for r in data:
             if not isinstance(r, dict):
                 continue
+            r["_banco_log"] = banco
             r["_fecha_log"] = fecha
             r["_archivo_log"] = p.name
             todos.append(r)
@@ -177,7 +187,7 @@ def agregar(resultados: list[dict]) -> dict:
 def formatear_reporte(metrica: dict, dias: int, paths: list[Path]) -> str:
     fecha_run = dt.datetime.now().strftime("%Y-%m-%d %H:%M")
     lines = [
-        f"# Metricas semanales pipeline Davivienda — {fecha_run}",
+        f"# Metricas semanales pipeline (Davivienda + Bancolombia) — {fecha_run}",
         f"# Ventana: ultimos {dias} dias  ·  archivos JSON analizados: {len(paths)}",
         "",
     ]
