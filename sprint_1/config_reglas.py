@@ -63,6 +63,12 @@ TOLERANCIA_G1_CUOTA_DUPLICADA = 0.05  # ratio 5%
 # R-DVV-06 G3 — suma agregada
 TOLERANCIA_G3_SUMA_DUPLICADA = 0.10  # ratio 10%
 
+# 2026-05-16 (Audit L): tolerancia de la validacion cruzada interna del
+# extractor Bancolombia (suma cap+int+seg+mora vs "Valor a Pagar"). Antes
+# era literal local `_TOL_VALIDACION_EXTRACCION = 100.0` en
+# extract_bancolombia_pdf.py — centralizado aqui (MASTER_RULES §8.15).
+TOLERANCIA_EXTRACCION_CRUZADA_BCO = 100.0  # ±$100 COP ruido redondeo
+
 # ============================================================
 # PROPONEDOR DE PLAZOS (Reglas 9.4 + §3a-3e)
 # ============================================================

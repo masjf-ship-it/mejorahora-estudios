@@ -214,6 +214,43 @@ Para cambios que implican borrar regla de doc canónico, registrar aquí la regl
 
 ## 2026-05-16
 
+- **[2026-05-16 PM] Audit L — trío Bancolombia (pipeline + extract + validar): formal anti-drift.**
+
+  Cierra el audit anti-drift de lo recién shippeado (antes solo tenían el
+  clone-artifact audit del agente, commit 395ce29).
+
+  **`validar_extraccion_bancolombia.py` (161L): LIMPIO.** Constantes
+  importadas de config_reglas con fallback defensivo (mismo patrón robusto
+  que validar_extraccion_davivienda, Audit F8). Sin literales hardcoded.
+  Regla R-BCO-20 v2 ya reconciliada (sesión previa).
+
+  **`pipeline_bancolombia.py` (1455L): sin drift nuevo.** Clone-artifact
+  audit ya cubrió las deltas Bancolombia (es_vis/log/docstring → 395ce29).
+  R-DVV-07 `proyectar_sexta_cuota` confirmado dead-clone-code correctamente
+  inerte + documentado (skip explícito). Literales detectados son reglas
+  de negocio documentadas (R-BCO-05 ingresos=0, R-BCO-18 Ley546 5.0a,
+  R-DVV-07 skip) — no drift.
+
+  **`extract_bancolombia_pdf.py` (424L): 2 fixes aplicados.**
+  - **L1 (robustez, cero regresión):** los regex de campos financieros
+    críticos (4 tasas, Interés mora, crédito, nombre) usaban clases
+    `[eé\w]`/`[uú\w]`/`[\wÑ]` que NO incluían el mojibake `�` (U+FFFD
+    `�`) que el propio docstring del módulo dice que ocurre
+    (`é→�`). Inconsistencia con su convención declarada. Añadido `�`
+    a esas clases — **estrictamente amplía** (cero regresión, verificado:
+    texto limpio sigue → 9.50; mojibake `inter�s` ahora → 12.34, antes
+    fallaba → tasa=0 → M1 bloqueaba). Codepoint confirmado U+FFFD.
+  - **L2 (anti-drift §8.15):** `_TOL_VALIDACION_EXTRACCION = 100.0`
+    literal local → centralizado en `config_reglas.TOLERANCIA_
+    EXTRACCION_CRUZADA_BCO` + import con fallback defensivo (patrón
+    validadores). Mismo valor, una sola fuente.
+  - L3 (nota, sin cambio): `dias_mora=30`/`dias_liquidados=30`/
+    `texto[:1500]`/`>1_000_000` son defaults de inferencia documentados
+    en MOM_BANCOLOMBIA R-BCO-10c / fallbacks defensivos — se dejan.
+
+  No es cambio de regla → sin bump MOM/MASTER_RULES (igual I/J/K).
+  Tests: pytest 52/52, test_fase2 16/16, anom_drift=0.
+
 - **[2026-05-16 PM] Audit K — `generar_desde_sheets.py` (453L): limpio, 3 hallazgos anti-drift menores.**
 
   Módulo financiero núcleo compartido DVV+BCO (`_capital_intereses_simulador`,

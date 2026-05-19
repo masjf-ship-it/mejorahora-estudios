@@ -32,6 +32,13 @@ from pathlib import Path
 # Reutilizar utilidades de Davivienda (genericas, parser numeros colombianos).
 from extract_davivienda_pdf import _limpiar_num, _buscar
 
+# 2026-05-16 (Audit L): tolerancia centralizada (MASTER_RULES §8.15).
+# Fallback defensivo si se importa aislado sin sprint_1 en sys.path.
+try:
+    from config_reglas import TOLERANCIA_EXTRACCION_CRUZADA_BCO
+except ImportError:
+    TOLERANCIA_EXTRACCION_CRUZADA_BCO = 100.0
+
 
 def _peso_col(raw: str) -> float:
     """Convierte numero en formato colombiano de miles a float.
@@ -123,13 +130,13 @@ def parse_bancolombia_pdf(pdf_path: str, cedula_fallback: str = "") -> dict:
 
     # Numero de credito (formato Bancolombia: 9NNNNNNNNNN, sin guion verificador)
     datos["credito"] = _buscar(
-        r"N[uú\w]mero\s+de\s+cr[eé\w]dito\s+(\d{8,15})",
+        r"N[uú\w�]mero\s+de\s+cr[eé\w�]dito\s+(\d{8,15})",
         texto,
     ) or ""
 
     # Nombre cliente (despues de "SE�OR(A):" o "SEÑOR(A):")
     nombre = _buscar(
-        r"SE[\wÑ]OR\(A\):\s*\n?([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ\s]+?)\s*\n",
+        r"SE[\wÑ�]OR\(A\):\s*\n?([A-ZÁÉÍÓÚÑ�][A-ZÁÉÍÓÚÑ�\s]+?)\s*\n",
         texto, flags=re.M
     )
     datos["nombre"] = nombre.strip() if nombre else ""
@@ -198,7 +205,7 @@ def parse_bancolombia_pdf(pdf_path: str, cedula_fallback: str = "") -> dict:
         r"Valor\s+cuotas\s+vencidas\s+\$?\s*([\d,\.]+)", texto, default="0"
     ))
     datos["interes_mora"] = _peso_col(_buscar(
-        r"Inter[eé\w]s\s+de\s+mora\s+\$?\s*([\d,\.]+)", texto, default="0"
+        r"Inter[eé\w�]s\s+de\s+mora\s+\$?\s*([\d,\.]+)", texto, default="0"
     ))
     # `dias_mora` no aparece explicito en Bancolombia. Lo inferimos:
     # si hay cuotas_vencidas > 0, asumimos mora activa. R-DVV-10c equivalente.
@@ -239,20 +246,20 @@ def parse_bancolombia_pdf(pdf_path: str, cedula_fallback: str = "") -> dict:
     # TASAS
     # =========================================================
     datos["tasa_pactada"] = _peso_col(_buscar(
-        r"Tasa\s+inter[eé\w]s\s+pactada\s+([\d,\.]+)\s*%",
+        r"Tasa\s+inter[eé\w�]s\s+pactada\s+([\d,\.]+)\s*%",
         texto, default="0"
     ))
     # Tasa CANONICA del estudio (R-BCO-04): Tasa interes cobrada
     datos["tasa_cobrada"] = _peso_col(_buscar(
-        r"Tasa\s+inter[eé\w]s\s+cobrada\s+([\d,\.]+)\s*%",
+        r"Tasa\s+inter[eé\w�]s\s+cobrada\s+([\d,\.]+)\s*%",
         texto, default="0"
     ))
     datos["tasa_subsidiada"] = _peso_col(_buscar(
-        r"Tasa\s+inter[eé\w]s\s+subsidiada\s+([\d,\.]+)\s*%",
+        r"Tasa\s+inter[eé\w�]s\s+subsidiada\s+([\d,\.]+)\s*%",
         texto, default="0"
     ))
     datos["tasa_mora_cobrada"] = _peso_col(_buscar(
-        r"Tasa\s+inter[eé\w]s\s+mora\s+cobrada\s+([\d,\.]+)\s*%",
+        r"Tasa\s+inter[eé\w�]s\s+mora\s+cobrada\s+([\d,\.]+)\s*%",
         texto, default="0"
     ))
 
@@ -371,14 +378,13 @@ def parse_bancolombia_pdf(pdf_path: str, cedula_fallback: str = "") -> dict:
     # =========================================================
     datos["tipo"] = tipo_extracto
     datos["_validacion"] = {}
-    _TOL_VALIDACION_EXTRACCION = 100.0  # ±$100 COP ruido redondeo
 
     # Suma seguros aplicados + capital + intereses + mora ≈ Valor a Pagar
     suma = (datos["abonos_capital"] + datos["intereses_corrientes"]
             + seg_total + datos["interes_mora"])
     diff = abs(valor_a_pagar - suma) if valor_a_pagar > 0 else 0
     datos["_validacion"]["valor_a_pagar_diff"] = round(diff, 2)
-    datos["_validacion"]["valor_a_pagar_ok"] = diff < _TOL_VALIDACION_EXTRACCION
+    datos["_validacion"]["valor_a_pagar_ok"] = diff < TOLERANCIA_EXTRACCION_CRUZADA_BCO
 
     # Tasa para estudio (R-BCO-04): SIEMPRE Tasa interes cobrada
     datos["tasa_estudio"] = datos["tasa_cobrada"]
