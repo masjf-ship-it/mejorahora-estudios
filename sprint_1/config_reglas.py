@@ -69,6 +69,12 @@ TOLERANCIA_G3_SUMA_DUPLICADA = 0.10  # ratio 10%
 # extract_bancolombia_pdf.py — centralizado aqui (MASTER_RULES §8.15).
 TOLERANCIA_EXTRACCION_CRUZADA_BCO = 100.0  # ±$100 COP ruido redondeo
 
+# 2026-05-16 (Audit M): tolerancia del validador M2 (validar_excel_generado)
+# al comparar celdas del Excel generado vs DatosClienteExcel. Excel redondea;
+# tol estricta de $1. Antes era literal local `TOLERANCIA_PESOS = 1.0`
+# (MASTER_RULES §8.15 — todos los validadores importan tolerancias de aqui).
+TOLERANCIA_M2_PESOS = 1.0  # Excel redondea, tol estricta de $1
+
 # ============================================================
 # PROPONEDOR DE PLAZOS (Reglas 9.4 + §3a-3e)
 # ============================================================

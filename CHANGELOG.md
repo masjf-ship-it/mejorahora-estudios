@@ -214,6 +214,34 @@ Para cambios que implican borrar regla de doc canónico, registrar aquí la regl
 
 ## 2026-05-16
 
+- **[2026-05-16 PM] Audit M — `validar_excel_generado.py` (170L): limpio, 2 fixes anti-drift/multi-banco.**
+
+  Validador M2 (gate de calidad post-Excel, agnóstico de banco — lo usan
+  pipeline_davivienda y pipeline_bancolombia). **Mayormente limpio:** el
+  regex de filename refleja correctamente el formato nuevo
+  `-CCCC-DD.MM.AA.xlsx` (Fix 3 bien aplicado, consistente con
+  `EXCEL_NAMING_TEMPLATE`); B13/B14 sin validar es decisión documentada
+  (Regla 9.3 los ajusta post-populator); R-3b plazos descendentes OK.
+
+  - **M1 (anti-drift §8.15):** `TOLERANCIA_PESOS = 1.0` literal local →
+    centralizado en `config_reglas.TOLERANCIA_M2_PESOS` + import con
+    fallback defensivo (mismo patrón que validar_extraccion_*). Mismo
+    valor; verificado `_aprox` sin cambio de comportamiento.
+  - **M4 (doc multi-banco):** docstring NOTE citaba solo
+    `validar_extraccion_davivienda` en un validador COMPARTIDO →
+    generalizado a "M1 del banco (validar_extraccion_<banco>: davivienda
+    o bancolombia)" + nota explícita de que el módulo es agnóstico.
+  - M3/M5/M6 (notas, sin cambio): B13/B14 documentado, activeTab check
+    correcto, R-3b ref válida.
+
+  No es cambio de regla → sin bump MOM/MASTER_RULES (igual I/J/K/L).
+  Tests: pytest 52/52, test_fase2 16/16, anom_drift=0.
+
+  **Cierre prioridad media-alta:** Audits K (generar_desde_sheets), L
+  (trío Bancolombia), M (validar_excel_generado M2) completos. Pendiente
+  solo baja prioridad: oauth_drive, metricas_pipeline, cloud_bootstrap,
+  diag_oauth, drive_oauth_setup.
+
 - **[2026-05-16 PM] Audit L — trío Bancolombia (pipeline + extract + validar): formal anti-drift.**
 
   Cierra el audit anti-drift de lo recién shippeado (antes solo tenían el

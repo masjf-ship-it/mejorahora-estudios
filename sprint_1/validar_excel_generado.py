@@ -19,11 +19,16 @@ Validaciones en hoja ACTUAL:
   - 6 opciones (B16:B21)    plazos en orden DESCENDENTE (R-3b)
   - activeTab               == 0 (hoja ACTUAL seleccionada)
 
+Validador AGNOSTICO de banco (lo usan pipeline_davivienda y
+pipeline_bancolombia — celdas canonicas de PESOS.xlsx, sin logica
+banco-especifica).
+
 NOTA: B13 (capital_mensual) y B14 (interes_mensual) NO se validan en M2
 porque la Regla 9.3 los ajusta post-populator y el valor canonico es el
 del Excel ya escrito (la cuota se reconstituye por columnas). El control
-de coherencia 9.3 vive en M1 (validar_extraccion_davivienda) antes del
-write, y en la suma vs cuota que la propia formula B5 reproduce.
+de coherencia 9.3 vive en M1 del banco (validar_extraccion_<banco>:
+davivienda o bancolombia) antes del write, y en la suma vs cuota que la
+propia formula B5 reproduce.
 
 Filename: ESTUDIO <NOMBRE MAYUSCULAS>-<CCCC>-DD.MM.AA.xlsx (2026-05-15 Jose feedback).
 CCCC = ultimos 4 digitos del credito (antes del guion verificador). Permite
@@ -40,8 +45,13 @@ from pathlib import Path
 
 from openpyxl import load_workbook
 
-
-TOLERANCIA_PESOS = 1.0  # Excel redondea, tol estricta de $1
+# 2026-05-16 (Audit M): tolerancia centralizada (MASTER_RULES §8.15).
+# Fallback defensivo si se importa aislado sin sprint_1 en sys.path
+# (mismo patron que validar_extraccion_davivienda/bancolombia).
+try:
+    from config_reglas import TOLERANCIA_M2_PESOS as TOLERANCIA_PESOS
+except ImportError:
+    TOLERANCIA_PESOS = 1.0  # Excel redondea, tol estricta de $1
 
 
 def _aprox(a, b, tol=TOLERANCIA_PESOS) -> bool:
